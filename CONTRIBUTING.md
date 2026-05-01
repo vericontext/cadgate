@@ -56,7 +56,7 @@ Phase 4 will expose the engine through MCP, and the discipline above is what kee
 
 ## What's actively being built
 
-Track progress and the current implementation plan in [`/Users/kiyeonjeon/.claude/plans/typed-conjuring-goblet.md`](https://github.com/vericontext/cadgate) (currently the maintainer's local plan; will move into-tree once Phase 2 ships). Roughly:
+Phase status:
 
 | Phase | Status |
 |-------|--------|

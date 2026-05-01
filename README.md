@@ -2,7 +2,7 @@
 
 Validate AI-generated CAD-as-code PRs (CadQuery / Build123d) — geometric metric diff, DFM rules, 6-view PR previews, and (Phase 3) LLM judge as a CLI gate and MCP server.
 
-> Status: Phase 2b in progress. See `/Users/kiyeonjeon/.claude/plans/typed-conjuring-goblet.md` for the live plan.
+> Status: Phase 2b. Active work and roadmap tracked in [issues](https://github.com/vericontext/cadgate/issues); see [CONTRIBUTING](./CONTRIBUTING.md) for the phase table.
 
 ## GitHub Action (Phase 2b)
 
