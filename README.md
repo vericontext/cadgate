@@ -50,6 +50,11 @@ curl -fsSL https://github.com/vericontext/cadgate/releases/latest/download/cadga
 cadgate version
 ```
 
+> **Intel Mac (`darwin-x64`)**: not shipped as a prebuilt binary in v0.1.x —
+> GitHub's free `macos-13` runner queue is unpredictable. Build from source
+> (see [Build from source](#build-from-source--contribute) below); `bun build --compile`
+> produces a native `darwin-x64` binary in ~2 minutes.
+
 The binary is self-contained (Bun runtime + JS deps inlined). You also need:
 
 ```bash
