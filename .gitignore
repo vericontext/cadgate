@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.claude/scheduled_tasks.lock
 .cadgate-cache/
 tmp/
 *.stl

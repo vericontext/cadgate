@@ -1,8 +1,26 @@
 import Module from 'manifold-3d';
 import wasmAssetPath from 'manifold-3d/manifold.wasm' with { type: 'file' };
 import type { Metrics } from '../core/types.ts';
+import type { RunErrorKind } from '../drivers/types.ts';
+import { computeMinWall } from './min-wall.ts';
 
 type ManifoldToplevel = Awaited<ReturnType<typeof Module>>;
+type ManifoldInstance = InstanceType<ManifoldToplevel['Manifold']>;
+
+export interface ParsedMesh {
+  vertProperties: Float32Array;
+  triVerts: Uint32Array;
+}
+
+export type AnalyzeResult =
+  | {
+      ok: true;
+      metrics: Metrics;
+      mesh: ParsedMesh;
+      manifold: ManifoldInstance;
+      dispose: () => void;
+    }
+  | { ok: false; error: { kind: RunErrorKind; message: string } };
 
 let cached: Promise<ManifoldToplevel> | null = null;
 
@@ -20,11 +38,6 @@ function getManifold(): Promise<ManifoldToplevel> {
     })();
   }
   return cached;
-}
-
-interface ParsedMesh {
-  vertProperties: Float32Array;
-  triVerts: Uint32Array;
 }
 
 const QUANT = 1e5; // 1e-5 mm precision
@@ -73,41 +86,65 @@ export function parseBinarySTL(buffer: ArrayBuffer): ParsedMesh {
 
 const STL_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
-export async function analyzeStl(stlPath: string): Promise<Metrics> {
+function fail(kind: RunErrorKind, message: string): AnalyzeResult {
+  return { ok: false, error: { kind, message } };
+}
+
+export async function analyzeStl(stlPath: string): Promise<AnalyzeResult> {
   const file = Bun.file(stlPath);
   const size = file.size;
-  if (size === 0) {
-    throw new Error(`STL is empty: ${stlPath}`);
-  }
+  if (size === 0) return fail('mesh_invalid', `STL is empty: ${stlPath}`);
   if (size > STL_MAX_BYTES) {
-    throw new Error(`STL exceeds ${STL_MAX_BYTES} byte limit (${size} bytes): ${stlPath}`);
+    return fail(
+      'mesh_invalid',
+      `STL exceeds ${STL_MAX_BYTES} byte limit (${size} bytes): ${stlPath}`,
+    );
   }
 
   const buffer = await file.arrayBuffer();
-  const parsed = parseBinarySTL(buffer);
+  let parsed: ParsedMesh;
+  try {
+    parsed = parseBinarySTL(buffer);
+  } catch (err) {
+    return fail('mesh_invalid', err instanceof Error ? err.message : String(err));
+  }
 
   const wasm = await getManifold();
-  const mesh = new wasm.Mesh({
+  const meshObj = new wasm.Mesh({
     numProp: 3,
     vertProperties: parsed.vertProperties,
     triVerts: parsed.triVerts,
   });
-  const m = new wasm.Manifold(mesh);
+  const manifold = new wasm.Manifold(meshObj);
+
+  let disposed = false;
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    manifold.delete();
+  };
+
   try {
-    const triCount = m.numTri();
-    const status = m.status();
-    const box = m.boundingBox();
-    return {
-      volume: m.volume(),
-      surfaceArea: m.surfaceArea(),
-      isWatertight: triCount > 0 && status === 'NoError',
+    const triCount = manifold.numTri();
+    const status = manifold.status();
+    const box = manifold.boundingBox();
+    const isWatertight = triCount > 0 && status === 'NoError';
+    const minWall = computeMinWall(parsed, { isWatertight });
+    const metrics: Metrics = {
+      volume: manifold.volume(),
+      surfaceArea: manifold.surfaceArea(),
+      isWatertight,
       bbox: {
         min: [box.min[0], box.min[1], box.min[2]],
         max: [box.max[0], box.max[1], box.max[2]],
       },
       triCount,
+      minWallMm: minWall.minWallMm,
+      minWallHotspots: minWall.hotspots,
     };
-  } finally {
-    m.delete();
+    return { ok: true, metrics, mesh: parsed, manifold, dispose };
+  } catch (err) {
+    dispose();
+    return fail('mesh_invalid', err instanceof Error ? err.message : String(err));
   }
 }

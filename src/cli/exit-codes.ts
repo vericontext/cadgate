@@ -8,6 +8,7 @@ export const EXIT = {
   INVALID_ARGS: 2,
   DOCKER_UNAVAILABLE: 3,
   CHECK_FAILED: 4,
+  RULE_VIOLATION: 5,
 } as const;
 
 export type ExitCode = (typeof EXIT)[keyof typeof EXIT];
@@ -21,6 +22,7 @@ export type ErrorCode =
   | 'DRIVER_RUNTIME'
   | 'MESH_INVALID'
   | 'GIT_ERROR'
+  | 'RULE_VIOLATION'
   | 'INTERNAL';
 
 export function exitCodeForError(code: ErrorCode): ExitCode {
@@ -31,6 +33,8 @@ export function exitCodeForError(code: ErrorCode): ExitCode {
     case 'DOCKER_UNAVAILABLE':
     case 'IMAGE_MISSING':
       return EXIT.DOCKER_UNAVAILABLE;
+    case 'RULE_VIOLATION':
+      return EXIT.RULE_VIOLATION;
     case 'DRIVER_TIMEOUT':
     case 'DRIVER_RUNTIME':
     case 'MESH_INVALID':

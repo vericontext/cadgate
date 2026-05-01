@@ -31,7 +31,15 @@ async function metricsFor(label: string, fixturePath: string): Promise<Metrics> 
         `[${label}] driver failed (kind=${result.error.kind}): ${result.error.message}\n${result.error.stderr ?? ''}`,
       );
     }
-    return await analyzeStl(result.stlPath);
+    const meshResult = await analyzeStl(result.stlPath);
+    if (!meshResult.ok) {
+      throw new Error(`[${label}] mesh analysis failed (${meshResult.error.kind}): ${meshResult.error.message}`);
+    }
+    try {
+      return meshResult.metrics;
+    } finally {
+      meshResult.dispose();
+    }
   } finally {
     await rm(workDir, { recursive: true, force: true });
   }

@@ -1,0 +1,26 @@
+version: 1
+material: PLA
+process: FDM
+
+rules:
+  - id: min-wall-thickness
+    minMm: 1.2
+    severity: error
+
+  - id: watertight
+    severity: error
+
+  - id: mass-budget
+    densityGcm3: 1.24
+    maxG: 250
+    severity: error
+
+  - id: regression-volume
+    maxAbsDeltaPct: 5
+    severity: error
+
+  # Phase 2b: overhang detection lands with the renderer.
+  - id: max-overhang-angle
+    maxDegrees: 45
+    severity: warn
+    enabled: false

@@ -1,23 +1,47 @@
 #!/usr/bin/env python3
-"""CADGate sidecar: exec a CadQuery script and export the result to STL.
+"""CADGate sidecar: exec a CadQuery or Build123d script and export the result to STL.
 
 Usage:  worker.py <script_path> <stl_out_path>
 Exit codes:
   0 ok
   2 syntax error in user script
   3 runtime error in user script
-  4 no result Workplane found in user script
+  4 no result object found in user script
 
-stdout: a single JSON line with run metadata.
+stdout: a single JSON line with run metadata (including detected library).
 stderr: human-readable error messages on non-zero exit.
 """
+import ast
 import json
 import sys
 import traceback
 from pathlib import Path
 
 
-def _pick_result(ns: dict, shown: list):
+def detect_library(source: str) -> str | None:
+    """Inspect top-level imports to decide which CAD library to dispatch to."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return None
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root = alias.name.split(".")[0]
+                if root == "cadquery":
+                    return "cadquery"
+                if root == "build123d":
+                    return "build123d"
+        elif isinstance(node, ast.ImportFrom):
+            root = (node.module or "").split(".")[0]
+            if root == "cadquery":
+                return "cadquery"
+            if root == "build123d":
+                return "build123d"
+    return None
+
+
+def _pick_cadquery_result(ns: dict, shown: list):
     if "result" in ns:
         return ns["result"]
     if shown:
@@ -29,8 +53,41 @@ def _pick_result(ns: dict, shown: list):
     return None
 
 
+def _pick_build123d_result(ns: dict, shown: list):
+    if "result" in ns:
+        return ns["result"]
+    if shown:
+        return shown[0]
+    import build123d as bd
+    candidates = (bd.Part, bd.Compound, bd.Solid, bd.Shape)
+    for value in reversed(list(ns.values())):
+        if isinstance(value, candidates):
+            return value
+    return None
+
+
+def export_cadquery(result, out: str) -> None:
+    import cadquery as cq
+    cq.exporters.export(
+        result, out, exportType="STL", tolerance=0.1, angularTolerance=0.1,
+    )
+
+
+def export_build123d(result, out: str) -> None:
+    import build123d as bd
+    bd.export_stl(result, out, tolerance=0.1, angular_tolerance=0.1)
+
+
+DISPATCH = {
+    "cadquery": (_pick_cadquery_result, export_cadquery),
+    "build123d": (_pick_build123d_result, export_build123d),
+}
+
+
 def main(script: str, out: str) -> int:
     code = Path(script).read_text()
+    library = detect_library(code) or "cadquery"  # back-compat default
+
     shown: list = []
 
     def show_object(obj, *_args, **_kwargs):
@@ -55,29 +112,29 @@ def main(script: str, out: str) -> int:
         traceback.print_exc()
         return 3
 
-    result = _pick_result(namespace, shown)
+    pick, export = DISPATCH[library]
+    result = pick(namespace, shown)
     if result is None:
         print(
-            "CADGate: no `result` variable, no show_object() call, and no top-level "
-            "Workplane / Assembly / Shape found in script.",
+            f"CADGate ({library}): no `result` variable, no show_object() call, "
+            "and no top-level result object found in script.",
             file=sys.stderr,
         )
         return 4
 
     try:
-        import cadquery as cq
-        cq.exporters.export(
-            result,
-            out,
-            exportType="STL",
-            tolerance=0.1,
-            angularTolerance=0.1,
-        )
+        export(result, out)
     except Exception:
         traceback.print_exc()
         return 3
 
-    print(json.dumps({"stl": out, "tolerance": 0.1, "angularTolerance": 0.1, "units": "mm"}))
+    print(json.dumps({
+        "stl": out,
+        "library": library,
+        "tolerance": 0.1,
+        "angularTolerance": 0.1,
+        "units": "mm",
+    }))
     return 0
 
 

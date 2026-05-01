@@ -5,12 +5,15 @@ import { changedFiles, readFileAtRef, requireCleanWorktree } from './git.ts';
 import { deltaFromSides } from './diff.ts';
 import { pickDriverFor } from '../drivers/registry.ts';
 import type { CadDriver } from '../drivers/types.ts';
+import { type DfmRules, evaluateDfmRules, type RuleViolation } from '../metrics/dfm.ts';
 import { analyzeStl } from '../metrics/manifold.ts';
+import type { Metrics, MetricsDelta } from './types.ts';
 import {
   type CheckReport,
   CheckReportSchema,
   type FileResult,
   type FileSide,
+  type Delta,
 } from '../metrics/schema.ts';
 
 export interface RunCheckOptions {
@@ -24,6 +27,20 @@ export interface RunCheckOptions {
   allowDirty?: boolean;
   /** Override workDir root (otherwise mkdtemp under tmpdir()). */
   workDirRoot?: string;
+  /** Validated DFM rules (caller does YAML loading + zod parsing). */
+  rules?: DfmRules;
+}
+
+function evaluateForFile(
+  base: FileSide,
+  head: FileSide,
+  delta: Delta,
+  rules: DfmRules | undefined,
+): RuleViolation[] {
+  if (!rules || head.state !== 'ok') return [];
+  const baseMetrics: Metrics | null = base.state === 'ok' ? base.metrics : null;
+  const fileDelta: MetricsDelta | null = delta.kind === 'changed' ? delta : null;
+  return evaluateDfmRules({ baseMetrics, headMetrics: head.metrics, delta: fileDelta, rules });
 }
 
 async function analyzeSide(
@@ -37,24 +54,21 @@ async function analyzeSide(
 
   const sideDir = await mkdtemp(join(workDir, 'side-'));
   try {
-    const result = await driver.run({ source, filename, timeoutMs, workDir: sideDir });
-    if (!result.ok) {
+    const runResult = await driver.run({ source, filename, timeoutMs, workDir: sideDir });
+    if (!runResult.ok) {
       return {
         state: 'failed',
-        error: { kind: result.error.kind, message: result.error.message },
+        error: { kind: runResult.error.kind, message: runResult.error.message },
       };
     }
+    const meshResult = await analyzeStl(runResult.stlPath);
+    if (!meshResult.ok) {
+      return { state: 'failed', error: meshResult.error };
+    }
     try {
-      const metrics = await analyzeStl(result.stlPath);
-      return { state: 'ok', metrics };
-    } catch (err) {
-      return {
-        state: 'failed',
-        error: {
-          kind: 'mesh_invalid',
-          message: err instanceof Error ? err.message : String(err),
-        },
-      };
+      return { state: 'ok', metrics: meshResult.metrics };
+    } finally {
+      meshResult.dispose();
     }
   } finally {
     await rm(sideDir, { recursive: true, force: true });
@@ -70,30 +84,32 @@ export async function runCheck(opts: RunCheckOptions): Promise<CheckReport> {
   const files: FileResult[] = [];
   try {
     for (const path of paths) {
-      const driver = pickDriverFor(path, opts.drivers);
+      const [baseSource, headSource] = await Promise.all([
+        readFileAtRef(opts.baseRef, path, opts.repoDir),
+        readFileAtRef(opts.headRef, path, opts.repoDir),
+      ]);
+
+      const driver = pickDriverFor(path, opts.drivers, headSource ?? baseSource);
       if (!driver) {
         files.push({ status: 'skipped', path, reason: 'no driver for extension' });
         continue;
       }
       const fileDir = await mkdtemp(join(root, 'file-'));
       try {
-        const [baseSource, headSource] = await Promise.all([
-          readFileAtRef(opts.baseRef, path, opts.repoDir),
-          readFileAtRef(opts.headRef, path, opts.repoDir),
-        ]);
-
         const [base, head] = await Promise.all([
           analyzeSide(driver, baseSource, path, fileDir, opts.timeoutMs),
           analyzeSide(driver, headSource, path, fileDir, opts.timeoutMs),
         ]);
 
+        const delta = deltaFromSides(base, head);
         files.push({
           status: 'analyzed',
           path,
           language: driver.language,
           base,
           head,
-          delta: deltaFromSides(base, head),
+          delta,
+          dfmViolations: evaluateForFile(base, head, delta, opts.rules),
         });
       } finally {
         await rm(fileDir, { recursive: true, force: true });
@@ -112,6 +128,10 @@ export async function runCheck(opts: RunCheckOptions): Promise<CheckReport> {
         f.status === 'analyzed' && (f.base.state === 'failed' || f.head.state === 'failed'),
     ).length,
     filesSkipped: files.filter((f) => f.status === 'skipped').length,
+    filesWithViolations: files.filter(
+      (f) =>
+        f.status === 'analyzed' && f.dfmViolations.some((v) => v.severity === 'error'),
+    ).length,
   };
 
   const report: CheckReport = {

@@ -1,11 +1,52 @@
 import { defineCommand } from 'citty';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { fromError } from 'zod-validation-error';
 import { runCheck } from '../../core/runner.ts';
 import { GitError } from '../../core/git.ts';
 import { createCadQueryDriver } from '../../drivers/cadquery-driver.ts';
-import { DriverReadyError } from '../../drivers/types.ts';
+import { createBuild123dDriver } from '../../drivers/build123d-driver.ts';
+import { type DfmRules, DfmRulesSchema } from '../../metrics/dfm.ts';
 import { detectOutputMode, formatError, formatReport, type OutputMode } from '../output.ts';
 import { type ErrorCode, EXIT, exitCodeForError } from '../exit-codes.ts';
+
+async function loadRules(
+  repoDir: string,
+  explicitPath: string | undefined,
+): Promise<{ ok: true; rules: DfmRules | null } | { ok: false; error: string }> {
+  let rulesPath = explicitPath ? resolve(explicitPath) : null;
+  if (!rulesPath) {
+    let dir = repoDir;
+    while (true) {
+      const candidate = resolve(dir, '.cadgate', 'rules.yaml');
+      if (existsSync(candidate)) {
+        rulesPath = candidate;
+        break;
+      }
+      const parent = dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  }
+  if (!rulesPath) return { ok: true, rules: null };
+  try {
+    const text = await Bun.file(rulesPath).text();
+    const parsed = Bun.YAML.parse(text);
+    const result = DfmRulesSchema.safeParse(parsed);
+    if (!result.success) {
+      return {
+        ok: false,
+        error: `${rulesPath}\n${fromError(result.error).toString()}`,
+      };
+    }
+    return { ok: true, rules: result.data };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `${rulesPath}: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
 
 export const checkCommand = defineCommand({
   meta: {
@@ -42,6 +83,11 @@ export const checkCommand = defineCommand({
       type: 'boolean',
       description: 'Allow uncommitted edits in the worktree.',
     },
+    rules: {
+      type: 'string',
+      description:
+        'Path to DFM rules YAML. Defaults to .cadgate/rules.yaml searched up from --repo.',
+    },
   },
   async run({ args }) {
     const mode = detectOutputMode(args.report);
@@ -51,15 +97,11 @@ export const checkCommand = defineCommand({
       fail('--timeout must be a positive integer (ms)', 'INVALID_ARGUMENT', mode);
     }
 
-    const driver = createCadQueryDriver();
-    try {
-      await driver.readyCheck();
-    } catch (err) {
-      if (err instanceof DriverReadyError) {
-        const code: ErrorCode = err.kind === 'image_missing' ? 'IMAGE_MISSING' : 'DOCKER_UNAVAILABLE';
-        fail(`${err.message}${err.remediation ? `\n  ${err.remediation}` : ''}`, code, mode);
-      }
-      throw err;
+    const drivers = [createCadQueryDriver(), createBuild123dDriver()];
+
+    const rulesResult = await loadRules(repoDir, args.rules);
+    if (!rulesResult.ok) {
+      fail(`Invalid rules YAML: ${rulesResult.error}`, 'INVALID_ARGUMENT', mode);
     }
 
     let report;
@@ -68,9 +110,10 @@ export const checkCommand = defineCommand({
         baseRef: args.base,
         headRef: args.head,
         repoDir,
-        drivers: [driver],
+        drivers,
         timeoutMs,
         allowDirty: args['allow-dirty'],
+        rules: rulesResult.rules ?? undefined,
       });
     } catch (err) {
       if (err instanceof GitError) {
@@ -80,6 +123,9 @@ export const checkCommand = defineCommand({
     }
 
     process.stdout.write(formatReport(report, mode) + '\n');
+    if (report.summary.filesWithViolations > 0) {
+      process.exit(EXIT.RULE_VIOLATION);
+    }
     if (report.summary.filesFailed > 0) {
       process.exit(EXIT.CHECK_FAILED);
     }
