@@ -5,7 +5,7 @@ import type { RunErrorKind } from '../drivers/types.ts';
 import { computeMinWall } from './min-wall.ts';
 
 type ManifoldToplevel = Awaited<ReturnType<typeof Module>>;
-type ManifoldInstance = InstanceType<ManifoldToplevel['Manifold']>;
+export type ManifoldInstance = InstanceType<ManifoldToplevel['Manifold']>;
 
 export interface ParsedMesh {
   vertProperties: Float32Array;

@@ -83,6 +83,38 @@ cadgate report --help   # full subcommand list
 
 Exit codes: `0` ok · `2` invalid args · `3` Docker missing/unavailable · `4` driver run failed · `5` DFM rule violation.
 
+## MCP server (for AI agents)
+
+CADGate ships an MCP stdio server so agents can self-validate generated CAD code before committing — closing the agentic loop in seconds instead of waiting for a CI run.
+
+**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "cadgate": {
+      "command": "/usr/local/bin/cadgate",
+      "args": ["mcp", "serve"]
+    }
+  }
+}
+```
+
+**Cursor / Cline / Continue / Claude Code**: same `command` + `args` shape; check your client's MCP docs for the exact config file path.
+
+### Tools
+
+| Tool | Inputs | Returns |
+|------|--------|---------|
+| `cad_validate` | `source`, optional `language`, `rules`, `render` | metrics + (if rules) violations + (if render) 6 PNG paths |
+| `cad_diff` | `baseSource`, `headSource`, optional `language` | base + head metrics + delta (volume, area, watertight, bbox, min-wall) |
+| `cad_dfm_check` | `source`, `rules`, optional `language` | rule violations |
+| `cad_render` | `source`, optional `language`, `views` (default all 6) | PNG paths on local disk |
+
+`language` is auto-detected from `import cadquery` / `import build123d` when omitted. Rendered PNGs persist for the MCP server's lifetime, then are cleaned up on shutdown — read them right after the call.
+
+The MCP server reuses the same Docker sidecars and Chromium dependencies as `cadgate check`. To launch without the renderer: `cadgate mcp serve --no-render`.
+
 ## Architecture
 
 CADGate runs as a single compiled binary with two interface adapters:
