@@ -2,6 +2,7 @@
 import { defineCommand, runMain } from 'citty';
 import pkg from '../../package.json' with { type: 'json' };
 import { checkCommand } from './commands/check.ts';
+import { reportCommand } from './commands/report.ts';
 import { versionCommand } from './commands/version.ts';
 import { logger } from './logger.ts';
 import { EXIT } from './exit-codes.ts';
@@ -16,6 +17,7 @@ const main = defineCommand({
   },
   subCommands: {
     check: checkCommand,
+    report: reportCommand,
     version: versionCommand,
   },
 });

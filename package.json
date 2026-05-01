@@ -23,6 +23,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@octokit/graphql": "^8",
+    "@octokit/rest": "^22",
     "citty": "^0.1.6",
     "manifold-3d": "^3.4.1",
     "puppeteer-core": "^24",

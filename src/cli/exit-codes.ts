@@ -23,6 +23,8 @@ export type ErrorCode =
   | 'MESH_INVALID'
   | 'GIT_ERROR'
   | 'RULE_VIOLATION'
+  | 'GITHUB_AUTH'
+  | 'GITHUB_API'
   | 'INTERNAL';
 
 export function exitCodeForError(code: ErrorCode): ExitCode {
@@ -39,6 +41,8 @@ export function exitCodeForError(code: ErrorCode): ExitCode {
     case 'DRIVER_RUNTIME':
     case 'MESH_INVALID':
     case 'GIT_ERROR':
+    case 'GITHUB_AUTH':
+    case 'GITHUB_API':
     case 'INTERNAL':
       return EXIT.GENERAL_ERROR;
   }
