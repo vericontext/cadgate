@@ -1,0 +1,2 @@
+cadquery==2.5.2
+numpy==2.0.2

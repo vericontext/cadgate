@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.cadgate-cache/
+tmp/
+*.stl
+!tests/fixtures/cube.stl
+coverage/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example

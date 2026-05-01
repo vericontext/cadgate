@@ -1,0 +1,31 @@
+{
+  "name": "cadgate",
+  "version": "0.0.1",
+  "description": "Validate AI-generated CAD-as-code PRs (CadQuery / Build123d / OpenSCAD / KCL).",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "bin": {
+    "cadgate": "./dist/cadgate"
+  },
+  "scripts": {
+    "dev": "bun run src/cli/index.ts",
+    "poc": "bun run scripts/poc.ts",
+    "build": "bun build src/cli/index.ts --compile --outfile dist/cadgate",
+    "build:sidecar": "docker build --platform=linux/amd64 -t cadgate/cadquery-sidecar:0.1 python-sidecar",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "citty": "^0.1.6",
+    "manifold-3d": "^3.4.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "bun-types": "^1.1.0",
+    "typescript": "^5.6.0"
+  }
+}
