@@ -20,12 +20,12 @@ jobs:
           - target: linux-arm64
             runner: ubuntu-latest
             bun-target: bun-linux-arm64
-          - target: darwin-x64
-            runner: macos-13
-            bun-target: bun-darwin-x64
           - target: darwin-arm64
             runner: macos-14
             bun-target: bun-darwin-arm64
+          # darwin-x64 (Intel Mac) deferred — macos-13 free-tier runners
+          # have unpredictable queue waits. Intel Mac users build from source
+          # (see README "Build from source" — `bun build --compile` ~2 min).
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
