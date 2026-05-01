@@ -8,6 +8,8 @@ import type { CadDriver } from '../drivers/types.ts';
 import { type DfmRules, evaluateDfmRules, type RuleViolation } from '../metrics/dfm.ts';
 import { analyzeStl } from '../metrics/manifold.ts';
 import type { Metrics, MetricsDelta } from './types.ts';
+import type { Renderer } from '../render/engine.ts';
+import type { RenderPaths } from '../render/types.ts';
 import {
   type CheckReport,
   CheckReportSchema,
@@ -29,6 +31,10 @@ export interface RunCheckOptions {
   workDirRoot?: string;
   /** Validated DFM rules (caller does YAML loading + zod parsing). */
   rules?: DfmRules;
+  /** Already-initialized renderer; if absent, no renders are produced. */
+  renderer?: Renderer;
+  /** Override directory for persisted renders. Default: under workDir (cleaned up). */
+  rendersOut?: string;
 }
 
 function evaluateForFile(
@@ -49,6 +55,8 @@ async function analyzeSide(
   filename: string,
   workDir: string,
   timeoutMs: number,
+  rendersDir?: string,
+  renderer?: Renderer,
 ): Promise<FileSide> {
   if (source === null) return { state: 'absent' };
 
@@ -66,7 +74,15 @@ async function analyzeSide(
       return { state: 'failed', error: meshResult.error };
     }
     try {
-      return { state: 'ok', metrics: meshResult.metrics };
+      let renders: RenderPaths | undefined;
+      if (renderer && rendersDir) {
+        renders = await renderer.renderViews(
+          meshResult.mesh,
+          meshResult.metrics.minWallHotspots,
+          rendersDir,
+        );
+      }
+      return { state: 'ok', metrics: meshResult.metrics, renders };
     } finally {
       meshResult.dispose();
     }
@@ -96,9 +112,15 @@ export async function runCheck(opts: RunCheckOptions): Promise<CheckReport> {
       }
       const fileDir = await mkdtemp(join(root, 'file-'));
       try {
+        const safeName = path.replace(/[^a-zA-Z0-9._-]+/g, '_');
+        const baseRenders =
+          opts.renderer && opts.rendersOut ? join(opts.rendersOut, safeName, 'base') : undefined;
+        const headRenders =
+          opts.renderer && opts.rendersOut ? join(opts.rendersOut, safeName, 'head') : undefined;
+
         const [base, head] = await Promise.all([
-          analyzeSide(driver, baseSource, path, fileDir, opts.timeoutMs),
-          analyzeSide(driver, headSource, path, fileDir, opts.timeoutMs),
+          analyzeSide(driver, baseSource, path, fileDir, opts.timeoutMs, baseRenders, opts.renderer),
+          analyzeSide(driver, headSource, path, fileDir, opts.timeoutMs, headRenders, opts.renderer),
         ]);
 
         const delta = deltaFromSides(base, head);

@@ -13,17 +13,19 @@
   "scripts": {
     "dev": "bun run src/cli/index.ts",
     "poc": "bun run scripts/poc.ts",
-    "build": "bun build src/cli/index.ts --compile --outfile dist/cadgate",
+    "build:page": "bun build src/render/page-script.ts --target=browser --format=iife --minify --outfile=src/render/page-script.bundled.js",
+    "build": "bun run build:page && bun build src/cli/index.ts --compile --outfile dist/cadgate",
     "build:sidecar": "bun run build:sidecar:cadquery && bun run build:sidecar:build123d",
     "build:sidecar:cadquery": "docker build --platform=linux/amd64 --build-arg CAD_LIB=cadquery -t cadgate/cadquery-sidecar:0.2 python-sidecar",
     "build:sidecar:build123d": "docker build --platform=linux/amd64 --build-arg CAD_LIB=build123d -t cadgate/build123d-sidecar:0.2 python-sidecar",
-    "test": "bun test",
+    "test": "bun run build:page && bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "citty": "^0.1.6",
     "manifold-3d": "^3.4.1",
+    "puppeteer-core": "^24",
     "three": "^0.180",
     "three-mesh-bvh": "^0.9",
     "zod": "^3.23.8",

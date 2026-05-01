@@ -1,13 +1,18 @@
 import { z } from 'zod';
 import { MetricsDeltaSchema, MetricsSchema } from '../core/types.ts';
 import { RunErrorKindSchema } from '../drivers/types.ts';
+import { RenderPathsSchema } from '../render/types.ts';
 import { RuleViolationSchema } from './dfm.ts';
 
 export const CadLanguageSchema = z.enum(['cadquery', 'build123d', 'openscad', 'kcl']);
 
 export const FileSideSchema = z.discriminatedUnion('state', [
   z.object({ state: z.literal('absent') }),
-  z.object({ state: z.literal('ok'), metrics: MetricsSchema }),
+  z.object({
+    state: z.literal('ok'),
+    metrics: MetricsSchema,
+    renders: RenderPathsSchema.optional(),
+  }),
   z.object({
     state: z.literal('failed'),
     error: z.object({

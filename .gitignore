@@ -1,5 +1,6 @@
 node_modules/
 dist/
+src/render/page-script.bundled.js
 .claude/scheduled_tasks.lock
 .cadgate-cache/
 tmp/

@@ -7,6 +7,8 @@ import { GitError } from '../../core/git.ts';
 import { createCadQueryDriver } from '../../drivers/cadquery-driver.ts';
 import { createBuild123dDriver } from '../../drivers/build123d-driver.ts';
 import { type DfmRules, DfmRulesSchema } from '../../metrics/dfm.ts';
+import { Renderer, detectChromium } from '../../render/engine.ts';
+import { logger } from '../logger.ts';
 import { detectOutputMode, formatError, formatReport, type OutputMode } from '../output.ts';
 import { type ErrorCode, EXIT, exitCodeForError } from '../exit-codes.ts';
 
@@ -88,6 +90,15 @@ export const checkCommand = defineCommand({
       description:
         'Path to DFM rules YAML. Defaults to .cadgate/rules.yaml searched up from --repo.',
     },
+    render: {
+      type: 'string',
+      default: 'auto',
+      description: '6-view PNG rendering: true | false | auto (auto = detect Chromium).',
+    },
+    'render-out': {
+      type: 'string',
+      description: 'Persist rendered PNGs to this directory (otherwise tmp + cleaned up).',
+    },
   },
   async run({ args }) {
     const mode = detectOutputMode(args.report);
@@ -104,6 +115,23 @@ export const checkCommand = defineCommand({
       fail(`Invalid rules YAML: ${rulesResult.error}`, 'INVALID_ARGUMENT', mode);
     }
 
+    const renderMode = args.render;
+    const wantsRender =
+      renderMode === 'true' || (renderMode === 'auto' && detectChromium() !== null);
+    let renderer: Renderer | undefined;
+    if (wantsRender) {
+      const r = new Renderer();
+      const init = await r.init({ noSandbox: Bun.env.CI === 'true' });
+      if (init.ok) {
+        renderer = r;
+      } else {
+        if (renderMode === 'true') {
+          fail(`Renderer init failed: ${init.reason}${init.message ? ` — ${init.message}` : ''}`, 'INTERNAL', mode);
+        }
+        logger.warn(`rendering disabled (${init.reason})`);
+      }
+    }
+
     let report;
     try {
       report = await runCheck({
@@ -114,6 +142,8 @@ export const checkCommand = defineCommand({
         timeoutMs,
         allowDirty: args['allow-dirty'],
         rules: rulesResult.rules ?? undefined,
+        renderer,
+        rendersOut: args['render-out'] ? resolve(args['render-out']) : undefined,
       });
     } catch (err) {
       if (err instanceof GitError) {
@@ -121,6 +151,8 @@ export const checkCommand = defineCommand({
       }
       throw err;
     }
+
+    if (renderer) await renderer.close();
 
     process.stdout.write(formatReport(report, mode) + '\n');
     if (report.summary.filesWithViolations > 0) {
