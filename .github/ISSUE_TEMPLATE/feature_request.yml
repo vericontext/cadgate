@@ -1,0 +1,37 @@
+name: Feature request
+description: Propose a new DFM rule, CAD language, or workflow capability.
+labels: ['enhancement']
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - DFM rule (new check)
+        - CAD language driver (OpenSCAD / KCL / etc.)
+        - Render / PR comment
+        - GitHub Action / CI
+        - LLM judge (Phase 3)
+        - MCP server (Phase 4)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Why
+      description: What's the underlying problem this solves? Real PR / use case is even better.
+    validations:
+      required: true
+
+  - type: textarea
+    id: shape
+    attributes:
+      label: Proposed shape
+      description: Rough sketch — CLI flag, rule YAML entry, schema field, etc. (Don't worry about implementation detail.)
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

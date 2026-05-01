@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Implementation plan & roadmap
+    url: https://github.com/vericontext/cadgate#status
+    about: Phase status, scope, and what's actively being built.

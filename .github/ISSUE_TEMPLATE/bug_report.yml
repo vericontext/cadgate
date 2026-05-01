@@ -1,0 +1,58 @@
+name: Bug report
+description: A `cadgate` command produced an unexpected result.
+labels: ['bug']
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you run, and what was the result?
+      placeholder: |
+        $ cadgate check --base main --head HEAD
+        … (trim sensitive paths if needed)
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: input
+    id: cadgate-version
+    attributes:
+      label: cadgate version
+      description: Output of `cadgate version`.
+      placeholder: cadgate 0.1.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: cad-language
+    attributes:
+      label: CAD language
+      multiple: true
+      options:
+        - CadQuery
+        - Build123d
+        - OpenSCAD
+        - KCL
+        - "(not language-specific)"
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS + Bun version + Docker version + Chromium version (if relevant).
+      placeholder: macOS 25.3, Bun 1.3.11, Docker 29, Chrome 137
+
+  - type: textarea
+    id: report-json
+    attributes:
+      label: CheckReport JSON (optional)
+      description: If `cadgate check --report json` produced output, paste it here. Auto-formatted.
+      render: json
