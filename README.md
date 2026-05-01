@@ -1,10 +1,8 @@
 # CADGate
 
-Validate AI-generated CAD-as-code PRs (CadQuery / Build123d) — geometric metric diff, DFM rules, 6-view PR previews, and (Phase 3) LLM judge as a CLI gate and MCP server.
+Validate AI-generated CAD-as-code PRs (CadQuery / Build123d) — geometric metric diff, DFM rules, and 6-view rendered PR previews.
 
-> Status: Phase 2b. Active work and roadmap tracked in [issues](https://github.com/vericontext/cadgate/issues); see [CONTRIBUTING](./CONTRIBUTING.md) for the phase table.
-
-## GitHub Action (Phase 2b)
+## GitHub Action
 
 Drop this in `.github/workflows/cadgate.yml` of your hardware repo:
 
@@ -29,7 +27,7 @@ jobs:
 ```
 
 A typical PR gets:
-- ❌/✅ exit-coded CI gate (DFM rule violations → `RULE_VIOLATION` exit 5).
+- ❌/✅ exit-coded CI gate (DFM rule violations → exit 5).
 - 6-view rendered preview comment, sticky-updated on every push.
 
 ## Local quickstart
@@ -45,13 +43,12 @@ bun run build              # produces dist/cadgate (compiled, self-contained)
 
 ## Architecture
 
-CADGate exposes one validation engine through two interfaces:
+CADGate runs as a single compiled binary with two interface adapters:
 
-- `cadgate check` — CLI gate for CI (Phase 1+).
-- `cadgate report post-pr` — sticky PR comment with 6-view renders + diff (Phase 2b).
-- `cadgate mcp serve` — MCP server for agentic self-validation (Phase 4).
+- `cadgate check` — exit-code-driven CI gate. Reads git refs, runs CAD code in a sandboxed Docker sidecar, computes mesh metrics + DFM rule violations against a `.cadgate/rules.yaml` config.
+- `cadgate report post-pr` — posts/updates a sticky PR comment with the 6-view renders + diff table + violation list.
 
-CAD code runs in a Python Docker sidecar (CadQuery / Build123d are Python-only on top of OpenCascade). Mesh analysis runs in TypeScript via `manifold-3d` (WASM); minimum wall thickness via `three-mesh-bvh`. Rendering uses `puppeteer-core` + system Chromium.
+CAD code runs in Python Docker sidecars (CadQuery / Build123d are Python-only on top of OpenCascade). Mesh analysis runs in TypeScript via `manifold-3d` (WASM); minimum wall thickness via `three-mesh-bvh`. Rendering uses `puppeteer-core` + system Chromium.
 
 ## Supported environments
 
@@ -59,3 +56,13 @@ CAD code runs in a Python Docker sidecar (CadQuery / Build123d are Python-only o
 - **CAD execution:** Docker daemon, with `kiyeonj21/cadquery-sidecar:0.2` and/or `kiyeonj21/build123d-sidecar:0.2` images.
 - **Rendering (optional):** Chromium 120+ (system-installed). Use `--render=false` to skip.
 - **CI:** GitHub Actions `ubuntu-latest` runner has all of the above ready.
+
+## Roadmap
+
+- **LLM judge** — feed renders + metric diff + PR description to Claude Opus / GPT / Gemini for intent-vs-actual verdicts. Lets the comment cite *why* a change looks like a regression vs an intentional redesign.
+- **`cadgate mcp serve`** — expose the same engine via Model Context Protocol so agentic CAD generators (Cursor, Claude Code, Zoo Zookeeper, etc.) can self-validate before opening PRs.
+- **OpenSCAD + KCL drivers**.
+- **Hosted playground** at cadgate.dev (paste two STL/source revisions, get a CADGate report instantly).
+- **Public benchmark leaderboard** for AI-generated-CAD regressions across active OSS hardware repos.
+
+See [CONTRIBUTING](./CONTRIBUTING.md) for development setup and the live status table.

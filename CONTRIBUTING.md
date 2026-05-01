@@ -54,17 +54,14 @@ Phase 4 will expose the engine through MCP, and the discipline above is what kee
 - PRs need a passing `Test` workflow before merge. Self-validation via the CADGate Action lands once v0.1.0 is published.
 - Co-author trailers welcome — the project uses Claude Opus regularly and credits it in commits.
 
-## What's actively being built
+## Status
 
-Phase status:
+| Status | Capability |
+|--------|-----------|
+| ✅ shipped | `cadgate check` CLI — CadQuery + Build123d execution, manifold-3d metrics, min-wall-thickness, DFM rule engine |
+| 🎯 in progress | 6-view rendering, sticky PR comments, GitHub Action |
+| 🔜 next | LLM judge (Anthropic / OpenAI / Gemini drivers) |
+| 🔜 later | `cadgate mcp serve`, OpenSCAD + KCL drivers |
+| 🔜 later | cadgate.dev playground, public benchmark leaderboard |
 
-| Phase | Status |
-|-------|--------|
-| 0–1: PoC + `cadgate check` CLI | ✅ shipped |
-| 2a: Build123d driver, min-wall, DFM rule engine | ✅ shipped |
-| 2b: 6-view rendering, PR comments, GitHub Action | 🎯 in progress |
-| 3: LLM judge (Anthropic / OpenAI / Gemini) | 🔜 |
-| 4: `cadgate mcp serve` + OpenSCAD/KCL drivers | 🔜 |
-| 5: cadgate.dev playground + public benchmark | 🔜 |
-
-Open issues map roughly to these phases. New rule ideas, new CAD-language drivers, and clean small bug fixes are all welcome.
+Open issues map roughly to these capabilities. New DFM rules, new CAD-language drivers, and clean bug fixes are all welcome.
