@@ -11,7 +11,7 @@ import { postOrUpdateStickyComment } from '../../github/sticky-comment.ts';
 import { detectOutputMode, formatError, type OutputMode } from '../output.ts';
 import { type ErrorCode, EXIT, exitCodeForError } from '../exit-codes.ts';
 
-const DEFAULT_RENDERS_BRANCH = 'cadgate-renders';
+const DEFAULT_RENDERS_NAMESPACE = 'cadgate-renders';
 
 const postPrCommand = defineCommand({
   meta: {
@@ -30,10 +30,10 @@ const postPrCommand = defineCommand({
       type: 'string',
       description: 'GitHub token. Falls back to $GITHUB_TOKEN.',
     },
-    branch: {
+    'renders-namespace': {
       type: 'string',
-      default: DEFAULT_RENDERS_BRANCH,
-      description: 'Orphan branch to push render PNGs to.',
+      default: DEFAULT_RENDERS_NAMESPACE,
+      description: 'Custom git ref namespace to push render PNGs to (kept outside refs/heads to skip the GitHub "branch" banner).',
     },
     'inline-images': {
       type: 'boolean',
@@ -82,7 +82,7 @@ const postPrCommand = defineCommand({
           github,
           owner: ownerArg,
           repo: repoArg,
-          branch: args.branch,
+          refSubpath: `${args['renders-namespace']}/pr-${pr}`,
           message: `cadgate: PR #${pr} renders`,
           files: renderFiles,
         });
