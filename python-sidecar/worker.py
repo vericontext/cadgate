@@ -17,11 +17,11 @@ import traceback
 from pathlib import Path
 
 
-def _pick_result(ns: dict):
+def _pick_result(ns: dict, shown: list):
     if "result" in ns:
         return ns["result"]
-    if "show_object_result" in ns:
-        return ns["show_object_result"]
+    if shown:
+        return shown[0]
     import cadquery as cq
     for value in reversed(list(ns.values())):
         if isinstance(value, (cq.Workplane, cq.Assembly, cq.Shape)):
@@ -31,7 +31,17 @@ def _pick_result(ns: dict):
 
 def main(script: str, out: str) -> int:
     code = Path(script).read_text()
-    namespace: dict = {"__name__": "__cadgate__"}
+    shown: list = []
+
+    def show_object(obj, *_args, **_kwargs):
+        shown.append(obj)
+
+    namespace: dict = {
+        "__name__": "__cadgate__",
+        "show_object": show_object,
+        "debug": show_object,
+        "log": lambda *args, **kwargs: None,
+    }
 
     try:
         compiled = compile(code, script, "exec")
@@ -45,9 +55,13 @@ def main(script: str, out: str) -> int:
         traceback.print_exc()
         return 3
 
-    result = _pick_result(namespace)
+    result = _pick_result(namespace, shown)
     if result is None:
-        print("CADGate: no `result` Workplane / Assembly / Shape found in script", file=sys.stderr)
+        print(
+            "CADGate: no `result` variable, no show_object() call, and no top-level "
+            "Workplane / Assembly / Shape found in script.",
+            file=sys.stderr,
+        )
         return 4
 
     try:
