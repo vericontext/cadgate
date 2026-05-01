@@ -1,0 +1,97 @@
+name: CADGate
+description: Validate AI-generated CAD-as-code PRs (CadQuery / Build123d) — geometric metric diff, DFM rules, and rendered PR previews.
+author: vericontext
+
+branding:
+  icon: shield
+  color: purple
+
+inputs:
+  base-ref:
+    description: Base git ref (the merge target).
+    required: false
+    default: ${{ github.event.pull_request.base.sha }}
+  head-ref:
+    description: Head git ref (the PR branch tip).
+    required: false
+    default: ${{ github.event.pull_request.head.sha }}
+  rules:
+    description: Path to the DFM rules YAML.
+    required: false
+    default: .cadgate/rules.yaml
+  github-token:
+    description: GitHub token used for posting PR comments and pushing renders.
+    required: true
+  post-comment:
+    description: Post or update a sticky PR comment with renders + diff.
+    required: false
+    default: 'true'
+  render:
+    description: 6-view PNG rendering mode — 'true' / 'false' / 'auto'.
+    required: false
+    default: 'auto'
+  cadgate-version:
+    description: cadgate release tag to download (default 'latest').
+    required: false
+    default: latest
+
+runs:
+  using: composite
+  steps:
+    - name: Detect / install Chromium
+      shell: bash
+      run: |
+        if ! command -v chromium-browser >/dev/null && ! command -v google-chrome >/dev/null; then
+          echo "::group::Install Chromium"
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends chromium-browser || \
+            sudo apt-get install -y --no-install-recommends chromium
+          echo "::endgroup::"
+        fi
+
+    - name: Download cadgate binary
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        VER='${{ inputs.cadgate-version }}'
+        if [ "$VER" = "latest" ]; then
+          gh release download --repo vericontext/cadgate -p 'cadgate-linux-x64' -O /usr/local/bin/cadgate
+        else
+          gh release download "$VER" --repo vericontext/cadgate -p 'cadgate-linux-x64' -O /usr/local/bin/cadgate
+        fi
+        chmod +x /usr/local/bin/cadgate
+        cadgate version
+
+    - name: Pull CAD sidecar images
+      shell: bash
+      run: |
+        docker pull cadgate/cadquery-sidecar:0.2
+        docker pull cadgate/build123d-sidecar:0.2
+
+    - name: cadgate check
+      id: check
+      shell: bash
+      env:
+        CI: 'true'
+      run: |
+        cadgate check \
+          --base "${{ inputs.base-ref }}" \
+          --head "${{ inputs.head-ref }}" \
+          --rules "${{ inputs.rules }}" \
+          --render "${{ inputs.render }}" \
+          --render-out /tmp/cadgate-renders \
+          --report json > /tmp/cadgate-report.json
+
+    - name: cadgate report post-pr
+      if: |
+        always() && inputs.post-comment == 'true'
+        && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: |
+        cadgate report post-pr \
+          --report /tmp/cadgate-report.json \
+          --pr "${{ github.event.number }}"

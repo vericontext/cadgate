@@ -1,0 +1,19 @@
+name: CADGate
+on:
+  pull_request:
+    paths:
+      - '**/*.py'
+      - '.cadgate/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # required for the orphan render branch
+      pull-requests: write  # required for sticky PR comment
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # need full history for git diff
+      - uses: vericontext/cadgate@v0.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}

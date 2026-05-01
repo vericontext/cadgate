@@ -1,0 +1,85 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  binaries:
+    name: Build cadgate-${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - target: linux-x64
+            runner: ubuntu-latest
+            bun-target: bun-linux-x64
+          - target: linux-arm64
+            runner: ubuntu-latest
+            bun-target: bun-linux-arm64
+          - target: darwin-x64
+            runner: macos-13
+            bun-target: bun-darwin-x64
+          - target: darwin-arm64
+            runner: macos-14
+            bun-target: bun-darwin-arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: latest }
+      - run: bun install --frozen-lockfile
+      - run: bun run build:page
+      - run: |
+          bun build src/cli/index.ts \
+            --compile --target=${{ matrix.bun-target }} \
+            --outfile dist/cadgate-${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cadgate-${{ matrix.target }}
+          path: dist/cadgate-${{ matrix.target }}
+
+  sidecars:
+    name: Push sidecar images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build & push cadquery-sidecar
+        run: |
+          docker buildx build --platform=linux/amd64 \
+            --build-arg CAD_LIB=cadquery \
+            -t cadgate/cadquery-sidecar:0.2 \
+            -t ghcr.io/vericontext/cadquery-sidecar:0.2 \
+            --push python-sidecar
+      - name: Build & push build123d-sidecar
+        run: |
+          docker buildx build --platform=linux/amd64 \
+            --build-arg CAD_LIB=build123d \
+            -t cadgate/build123d-sidecar:0.2 \
+            -t ghcr.io/vericontext/build123d-sidecar:0.2 \
+            --push python-sidecar
+
+  release:
+    name: Publish GitHub Release
+    needs: [binaries, sidecars]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/cadgate-*
+          generate_release_notes: true
