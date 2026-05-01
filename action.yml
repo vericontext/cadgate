@@ -66,8 +66,8 @@ runs:
     - name: Pull CAD sidecar images
       shell: bash
       run: |
-        docker pull cadgate/cadquery-sidecar:0.2
-        docker pull cadgate/build123d-sidecar:0.2
+        docker pull kiyeonj21/cadquery-sidecar:0.2
+        docker pull kiyeonj21/build123d-sidecar:0.2
 
     - name: cadgate check
       id: check

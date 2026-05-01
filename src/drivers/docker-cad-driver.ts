@@ -17,10 +17,10 @@ export interface DockerCadDriverOptions {
 }
 
 const DEFAULT_IMAGES: Record<CadLanguage, string> = {
-  cadquery: 'cadgate/cadquery-sidecar:0.2',
-  build123d: 'cadgate/build123d-sidecar:0.2',
-  openscad: 'cadgate/openscad-sidecar:0.2',
-  kcl: 'cadgate/kcl-sidecar:0.2',
+  cadquery: 'kiyeonj21/cadquery-sidecar:0.2',
+  build123d: 'kiyeonj21/build123d-sidecar:0.2',
+  openscad: 'kiyeonj21/openscad-sidecar:0.2',
+  kcl: 'kiyeonj21/kcl-sidecar:0.2',
 };
 const DEFAULT_PLATFORM = 'linux/amd64';
 

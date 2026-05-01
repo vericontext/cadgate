@@ -59,14 +59,14 @@ jobs:
         run: |
           docker buildx build --platform=linux/amd64 \
             --build-arg CAD_LIB=cadquery \
-            -t cadgate/cadquery-sidecar:0.2 \
+            -t kiyeonj21/cadquery-sidecar:0.2 \
             -t ghcr.io/vericontext/cadquery-sidecar:0.2 \
             --push python-sidecar
       - name: Build & push build123d-sidecar
         run: |
           docker buildx build --platform=linux/amd64 \
             --build-arg CAD_LIB=build123d \
-            -t cadgate/build123d-sidecar:0.2 \
+            -t kiyeonj21/build123d-sidecar:0.2 \
             -t ghcr.io/vericontext/build123d-sidecar:0.2 \
             --push python-sidecar
 

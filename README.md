@@ -56,6 +56,6 @@ CAD code runs in a Python Docker sidecar (CadQuery / Build123d are Python-only o
 ## Supported environments
 
 - **Runtime:** Bun ≥1.1 (binary releases bundle the Bun runtime).
-- **CAD execution:** Docker daemon, with `cadquery-sidecar:0.2` and/or `build123d-sidecar:0.2` images.
+- **CAD execution:** Docker daemon, with `kiyeonj21/cadquery-sidecar:0.2` and/or `kiyeonj21/build123d-sidecar:0.2` images.
 - **Rendering (optional):** Chromium 120+ (system-installed). Use `--render=false` to skip.
 - **CI:** GitHub Actions `ubuntu-latest` runner has all of the above ready.
