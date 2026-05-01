@@ -1,18 +1,8 @@
 import { z } from 'zod';
 import { MetricsDeltaSchema, MetricsSchema } from '../core/types.ts';
+import { RunErrorKindSchema } from '../drivers/types.ts';
 
 export const CadLanguageSchema = z.enum(['cadquery', 'build123d', 'openscad', 'kcl']);
-
-export const RunErrorKindSchema = z.enum([
-  'timeout',
-  'syntax',
-  'runtime',
-  'no_result',
-  'docker_missing',
-  'image_missing',
-  'mesh_invalid',
-  'unknown',
-]);
 
 export const FileSideSchema = z.discriminatedUnion('state', [
   z.object({ state: z.literal('absent') }),

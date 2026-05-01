@@ -4,7 +4,6 @@ import { runCheck } from '../../core/runner.ts';
 import { GitError } from '../../core/git.ts';
 import { createCadQueryDriver } from '../../drivers/cadquery-driver.ts';
 import { DriverReadyError } from '../../drivers/types.ts';
-import { logger } from '../logger.ts';
 import { detectOutputMode, formatError, formatReport, type OutputMode } from '../output.ts';
 import { type ErrorCode, EXIT, exitCodeForError } from '../exit-codes.ts';
 
@@ -88,10 +87,6 @@ export const checkCommand = defineCommand({
 });
 
 function fail(message: string, code: ErrorCode, mode: OutputMode): never {
-  if (mode === 'json') {
-    process.stdout.write(formatError(message, mode, code) + '\n');
-  } else {
-    logger.error(message);
-  }
+  process.stderr.write(formatError(message, mode, code) + '\n');
   process.exit(exitCodeForError(code));
 }

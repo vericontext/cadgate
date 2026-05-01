@@ -1,3 +1,4 @@
+import { stdoutColors as C } from './colors.ts';
 import type { CheckReport, FileResult } from '../metrics/schema.ts';
 import type { ErrorCode } from './exit-codes.ts';
 
@@ -30,19 +31,11 @@ export function formatError(message: string, mode: OutputMode, code?: ErrorCode)
   return `Error: ${message}`;
 }
 
-const COLOR = {
-  red: (s: string) => (process.stdout.isTTY ? `\x1b[31m${s}\x1b[0m` : s),
-  green: (s: string) => (process.stdout.isTTY ? `\x1b[32m${s}\x1b[0m` : s),
-  yellow: (s: string) => (process.stdout.isTTY ? `\x1b[33m${s}\x1b[0m` : s),
-  dim: (s: string) => (process.stdout.isTTY ? `\x1b[2m${s}\x1b[0m` : s),
-  bold: (s: string) => (process.stdout.isTTY ? `\x1b[1m${s}\x1b[0m` : s),
-};
-
 function renderTextReport(report: CheckReport): string {
   const lines: string[] = [];
   lines.push(
-    COLOR.bold(`CADGate ${report.base}…${report.head}`) +
-      COLOR.dim(`  (${report.files.length} files)`),
+    C.bold(`CADGate ${report.base}…${report.head}`) +
+      C.dim(`  (${report.files.length} files)`),
   );
   for (const file of report.files) {
     lines.push(...renderFileLines(file));
@@ -50,38 +43,29 @@ function renderTextReport(report: CheckReport): string {
   lines.push('');
   const { filesChanged, filesFailed, filesSkipped } = report.summary;
   const status =
-    filesFailed > 0
-      ? COLOR.red(`✗ ${filesFailed} failed`)
-      : COLOR.green('✓ all checks passed');
-  lines.push(
-    `${status}  ${COLOR.dim(`(${filesChanged} changed, ${filesSkipped} skipped)`)}`,
-  );
+    filesFailed > 0 ? C.red(`✗ ${filesFailed} failed`) : C.green('✓ all checks passed');
+  lines.push(`${status}  ${C.dim(`(${filesChanged} changed, ${filesSkipped} skipped)`)}`);
   return lines.join('\n');
 }
 
 function renderFileLines(file: FileResult): string[] {
   if (file.status === 'skipped') {
-    return [`  ${COLOR.dim('—')} ${file.path} ${COLOR.dim(`(skipped: ${file.reason})`)}`];
+    return [`  ${C.dim('—')} ${file.path} ${C.dim(`(skipped: ${file.reason})`)}`];
   }
-  const head = `  ${file.path} ${COLOR.dim(`[${file.language}]`)}`;
+  const head = `  ${file.path} ${C.dim(`[${file.language}]`)}`;
   const delta = file.delta;
   switch (delta.kind) {
     case 'changed': {
       const sign = delta.volumeDelta >= 0 ? '+' : '';
       const pct = `${sign}${delta.volumeDeltaPct.toFixed(1)}%`;
-      const watertight = delta.watertightnessChanged
-        ? COLOR.red(' watertight changed')
-        : '';
-      return [
-        head,
-        `      Δvolume ${sign}${delta.volumeDelta.toFixed(1)}mm³ (${pct})${watertight}`,
-      ];
+      const watertight = delta.watertightnessChanged ? C.red(' watertight changed') : '';
+      return [head, `      Δvolume ${sign}${delta.volumeDelta.toFixed(1)}mm³ (${pct})${watertight}`];
     }
     case 'created':
-      return [head, `      ${COLOR.green('+ created')} volume=${delta.metrics.volume.toFixed(1)}mm³`];
+      return [head, `      ${C.green('+ created')} volume=${delta.metrics.volume.toFixed(1)}mm³`];
     case 'deleted':
-      return [head, `      ${COLOR.yellow('- deleted')} volume=${delta.metrics.volume.toFixed(1)}mm³`];
+      return [head, `      ${C.yellow('- deleted')} volume=${delta.metrics.volume.toFixed(1)}mm³`];
     case 'unavailable':
-      return [head, `      ${COLOR.red(`✗ ${delta.reason}`)}`];
+      return [head, `      ${C.red(`✗ ${delta.reason}`)}`];
   }
 }

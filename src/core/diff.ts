@@ -1,37 +1,28 @@
 import type { Metrics, MetricsDelta } from './types.ts';
 import type { Delta, FileSide } from '../metrics/schema.ts';
 
+function vec3Equal(a: readonly number[], b: readonly number[]): boolean {
+  return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+}
+
 export function diffMetrics(base: Metrics, head: Metrics): MetricsDelta {
   const volumeDelta = head.volume - base.volume;
-  const volumeDeltaPct = base.volume === 0 ? 0 : (volumeDelta / base.volume) * 100;
-  const bboxChanged =
-    base.bbox.min.toString() !== head.bbox.min.toString() ||
-    base.bbox.max.toString() !== head.bbox.max.toString();
   return {
     volumeDelta,
-    volumeDeltaPct,
+    volumeDeltaPct: base.volume === 0 ? 0 : (volumeDelta / base.volume) * 100,
     surfaceAreaDelta: head.surfaceArea - base.surfaceArea,
     triCountDelta: head.triCount - base.triCount,
-    bboxChanged,
+    bboxChanged: !vec3Equal(base.bbox.min, head.bbox.min) || !vec3Equal(base.bbox.max, head.bbox.max),
     watertightnessChanged: base.isWatertight !== head.isWatertight,
   };
 }
 
-/**
- * Compute the delta variant that goes into a FileResult given the analysis
- * outcome of base and head sides.
- */
 export function deltaFromSides(base: FileSide, head: FileSide): Delta {
-  if (base.state === 'failed' || head.state === 'failed') {
-    return {
-      kind: 'unavailable',
-      reason:
-        base.state === 'failed'
-          ? `base: ${base.error.kind} — ${base.error.message}`
-          : head.state === 'failed'
-            ? `head: ${head.error.kind} — ${head.error.message}`
-            : 'unknown',
-    };
+  if (base.state === 'failed') {
+    return { kind: 'unavailable', reason: `base: ${base.error.kind} — ${base.error.message}` };
+  }
+  if (head.state === 'failed') {
+    return { kind: 'unavailable', reason: `head: ${head.error.kind} — ${head.error.message}` };
   }
   if (base.state === 'absent' && head.state === 'ok') {
     return { kind: 'created', metrics: head.metrics };

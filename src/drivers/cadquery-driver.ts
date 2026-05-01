@@ -88,9 +88,9 @@ export function createCadQueryDriver(opts: CadQueryDriverOptions = {}): CadDrive
       signal,
     });
 
-    const [stdout, stderr] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
+    const [, stderr] = await Promise.all([
+      Bun.readableStreamToText(proc.stdout),
+      Bun.readableStreamToText(proc.stderr),
     ]);
     const exitCode = await proc.exited;
     const durationMs = performance.now() - started;

@@ -5,10 +5,11 @@
  *
  * Run: bun run poc
  */
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createCadQueryDriver } from '../src/drivers/cadquery-driver.ts';
+import { diffMetrics } from '../src/core/diff.ts';
 import { analyzeStl } from '../src/metrics/manifold.ts';
 import type { Metrics } from '../src/core/types.ts';
 
@@ -17,7 +18,7 @@ await driver.readyCheck();
 
 async function metricsFor(label: string, fixturePath: string): Promise<Metrics> {
   const source = await Bun.file(fixturePath).text();
-  const workDir = mkdtempSync(join(tmpdir(), `cadgate-poc-${label}-`));
+  const workDir = await mkdtemp(join(tmpdir(), `cadgate-poc-${label}-`));
   try {
     const result = await driver.run({
       source,
@@ -32,7 +33,7 @@ async function metricsFor(label: string, fixturePath: string): Promise<Metrics> 
     }
     return await analyzeStl(result.stlPath);
   } finally {
-    rmSync(workDir, { recursive: true, force: true });
+    await rm(workDir, { recursive: true, force: true });
   }
 }
 
@@ -50,15 +51,4 @@ const [base, head] = await Promise.all([
   metricsFor('head', headFixture),
 ]);
 
-const delta = {
-  volumeDelta: head.volume - base.volume,
-  volumeDeltaPct: ((head.volume - base.volume) / base.volume) * 100,
-  surfaceAreaDelta: head.surfaceArea - base.surfaceArea,
-  triCountDelta: head.triCount - base.triCount,
-  bboxChanged:
-    base.bbox.min.toString() !== head.bbox.min.toString() ||
-    base.bbox.max.toString() !== head.bbox.max.toString(),
-  watertightnessChanged: base.isWatertight !== head.isWatertight,
-};
-
-console.log(JSON.stringify({ base, head, delta }, null, 2));
+console.log(JSON.stringify({ base, head, delta: diffMetrics(base, head) }, null, 2));

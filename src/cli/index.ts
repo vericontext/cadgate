@@ -1,14 +1,17 @@
 #!/usr/bin/env bun
 import { defineCommand, runMain } from 'citty';
+import pkg from '../../package.json' with { type: 'json' };
 import { checkCommand } from './commands/check.ts';
 import { versionCommand } from './commands/version.ts';
 import { logger } from './logger.ts';
 import { EXIT } from './exit-codes.ts';
 
+export const VERSION = pkg.version;
+
 const main = defineCommand({
   meta: {
     name: 'cadgate',
-    version: '0.0.1',
+    version: VERSION,
     description: 'Validate AI-generated CAD-as-code PRs.',
   },
   subCommands: {

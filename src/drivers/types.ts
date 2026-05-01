@@ -1,26 +1,26 @@
+import { z } from 'zod';
+
 export type CadLanguage = 'cadquery' | 'build123d' | 'openscad' | 'kcl';
 
 export interface RunRequest {
-  /** Source code as string. The driver writes this to disk inside the sandbox. */
   source: string;
-  /** Original filename (informational; used in errors). */
   filename: string;
-  /** Per-call timeout in milliseconds. */
   timeoutMs: number;
-  /** Working directory the driver may use for inputs and artifacts. */
   workDir: string;
-  /** Caller-side cancellation. */
   signal?: AbortSignal;
 }
 
-export type RunErrorKind =
-  | 'timeout'
-  | 'syntax'
-  | 'runtime'
-  | 'no_result'
-  | 'docker_missing'
-  | 'image_missing'
-  | 'unknown';
+export const RunErrorKindSchema = z.enum([
+  'timeout',
+  'syntax',
+  'runtime',
+  'no_result',
+  'docker_missing',
+  'image_missing',
+  'mesh_invalid',
+  'unknown',
+]);
+export type RunErrorKind = z.infer<typeof RunErrorKindSchema>;
 
 export interface RunError {
   kind: RunErrorKind;

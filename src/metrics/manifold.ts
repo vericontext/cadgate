@@ -6,14 +6,12 @@ type ManifoldToplevel = Awaited<ReturnType<typeof Module>>;
 
 let cached: Promise<ManifoldToplevel> | null = null;
 
-export function getManifold(): Promise<ManifoldToplevel> {
+function getManifold(): Promise<ManifoldToplevel> {
   if (!cached) {
     cached = (async () => {
       const wasmBinary = await Bun.file(wasmAssetPath).arrayBuffer();
-      // Emscripten's Module factory accepts wasmBinary even though the TS
-      // declaration only lists locateFile. Cast to keep the runtime path open
-      // in both dev and bun build --compile (where manifold.wasm is embedded
-      // into /$bunfs/ via the import attribute above).
+      // Emscripten's Module factory accepts wasmBinary; the TS declaration
+      // omits it. Cast keeps both dev and bun build --compile paths working.
       const wasm = await (Module as unknown as (config: {
         wasmBinary: ArrayBuffer;
       }) => Promise<ManifoldToplevel>)({ wasmBinary });
