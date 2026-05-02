@@ -6,6 +6,8 @@ import { runCheck } from '../../core/runner.ts';
 import { GitError } from '../../core/git.ts';
 import { createCadQueryDriver } from '../../drivers/cadquery-driver.ts';
 import { createBuild123dDriver } from '../../drivers/build123d-driver.ts';
+import { isJudgeName, pickJudge } from '../../judges/registry.ts';
+import type { JudgeDriver } from '../../judges/types.ts';
 import { type DfmRules, DfmRulesSchema } from '../../metrics/dfm.ts';
 import { Renderer, detectChromium } from '../../render/engine.ts';
 import { logger } from '../logger.ts';
@@ -99,6 +101,27 @@ export const checkCommand = defineCommand({
       type: 'string',
       description: 'Persist rendered PNGs to this directory (otherwise tmp + cleaned up).',
     },
+    judge: {
+      type: 'string',
+      default: 'none',
+      description: 'LLM judge: none | opus | sonnet. Opt-in (uses ANTHROPIC_API_KEY).',
+    },
+    'judge-model': {
+      type: 'string',
+      description: 'Override the judge model id (e.g. claude-opus-4-7-1m).',
+    },
+    'pr-description': {
+      type: 'string',
+      description: 'PR description text passed to the judge.',
+    },
+    'pr-description-file': {
+      type: 'string',
+      description: 'Path to a file containing the PR description (alt to --pr-description).',
+    },
+    'anthropic-api-key': {
+      type: 'string',
+      description: 'Anthropic API key (otherwise read from ANTHROPIC_API_KEY env).',
+    },
   },
   async run({ args }) {
     const mode = detectOutputMode(args.report);
@@ -113,6 +136,37 @@ export const checkCommand = defineCommand({
     const rulesResult = await loadRules(repoDir, args.rules);
     if (!rulesResult.ok) {
       fail(`Invalid rules YAML: ${rulesResult.error}`, 'INVALID_ARGUMENT', mode);
+    }
+
+    let judge: JudgeDriver | undefined;
+    let prDescription: string | undefined;
+    if (args.judge && args.judge !== 'none') {
+      if (!isJudgeName(args.judge)) {
+        fail(
+          `--judge must be one of: none, opus, sonnet (got "${args.judge}")`,
+          'INVALID_ARGUMENT',
+          mode,
+        );
+      }
+      const apiKey = args['anthropic-api-key'] ?? Bun.env.ANTHROPIC_API_KEY;
+      const picked = pickJudge(args.judge, { apiKey, model: args['judge-model'] });
+      if (!picked.ok) {
+        fail(picked.reason, 'JUDGE_AUTH', mode);
+      }
+      judge = picked.driver;
+      if (args['pr-description-file']) {
+        try {
+          prDescription = await Bun.file(resolve(args['pr-description-file'])).text();
+        } catch (err) {
+          fail(
+            `Failed to read --pr-description-file: ${err instanceof Error ? err.message : String(err)}`,
+            'INVALID_ARGUMENT',
+            mode,
+          );
+        }
+      } else if (args['pr-description']) {
+        prDescription = args['pr-description'];
+      }
     }
 
     const renderMode = args.render;
@@ -144,6 +198,9 @@ export const checkCommand = defineCommand({
         rules: rulesResult.rules ?? undefined,
         renderer,
         rendersOut: args['render-out'] ? resolve(args['render-out']) : undefined,
+        judge,
+        prDescription,
+        logger,
       });
     } catch (err) {
       if (err instanceof GitError) {

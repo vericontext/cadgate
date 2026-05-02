@@ -5,6 +5,8 @@ import { changedFiles, readFileAtRef, requireCleanWorktree } from './git.ts';
 import { deltaFromSides } from './diff.ts';
 import { pickDriverFor } from '../drivers/registry.ts';
 import type { CadDriver } from '../drivers/types.ts';
+import type { Logger } from '../cli/logger.ts';
+import type { JudgeDriver, JudgeVerdict } from '../judges/types.ts';
 import { type DfmRules, evaluateDfmRules, type RuleViolation } from '../metrics/dfm.ts';
 import { analyzeStl } from '../metrics/manifold.ts';
 import type { Metrics, MetricsDelta } from './types.ts';
@@ -35,6 +37,12 @@ export interface RunCheckOptions {
   renderer?: Renderer;
   /** Override directory for persisted renders. Default: under workDir (cleaned up). */
   rendersOut?: string;
+  /** Optional LLM judge. Called once per analyzed file when head is ok. */
+  judge?: JudgeDriver;
+  /** Human-authored PR description, passed to the judge. */
+  prDescription?: string;
+  /** Logger for non-fatal warnings (judge failures). Defaults to no-op. */
+  logger?: Pick<Logger, 'warn'>;
 }
 
 function evaluateForFile(
@@ -124,6 +132,19 @@ export async function runCheck(opts: RunCheckOptions): Promise<CheckReport> {
         ]);
 
         const delta = deltaFromSides(base, head);
+        const dfmViolations = evaluateForFile(base, head, delta, opts.rules);
+        const judge = await maybeJudge({
+          path,
+          base,
+          head,
+          delta,
+          baseSource,
+          headSource,
+          dfmViolations,
+          judge: opts.judge,
+          prDescription: opts.prDescription,
+          logger: opts.logger,
+        });
         files.push({
           status: 'analyzed',
           path,
@@ -131,7 +152,8 @@ export async function runCheck(opts: RunCheckOptions): Promise<CheckReport> {
           base,
           head,
           delta,
-          dfmViolations: evaluateForFile(base, head, delta, opts.rules),
+          dfmViolations,
+          judge,
         });
       } finally {
         await rm(fileDir, { recursive: true, force: true });
@@ -154,6 +176,9 @@ export async function runCheck(opts: RunCheckOptions): Promise<CheckReport> {
       (f) =>
         f.status === 'analyzed' && f.dfmViolations.some((v) => v.severity === 'error'),
     ).length,
+    filesWithJudgeBlock: files.filter(
+      (f) => f.status === 'analyzed' && f.judge?.verdict === 'block',
+    ).length,
   };
 
   const report: CheckReport = {
@@ -164,4 +189,44 @@ export async function runCheck(opts: RunCheckOptions): Promise<CheckReport> {
     summary,
   };
   return CheckReportSchema.parse(report);
+}
+
+interface JudgeDispatchInput {
+  path: string;
+  base: FileSide;
+  head: FileSide;
+  delta: Delta;
+  baseSource: string | null;
+  headSource: string | null;
+  dfmViolations: RuleViolation[];
+  judge?: JudgeDriver;
+  prDescription?: string;
+  logger?: Pick<Logger, 'warn'>;
+}
+
+async function maybeJudge(input: JudgeDispatchInput): Promise<JudgeVerdict | undefined> {
+  const { judge, head, headSource } = input;
+  if (!judge) return undefined;
+  if (head.state !== 'ok' || headSource === null) return undefined;
+  const baseMetrics = input.base.state === 'ok' ? input.base.metrics : null;
+  const baseRenders = input.base.state === 'ok' ? input.base.renders ?? null : null;
+  const headRenders = head.renders ?? null;
+  const fileDelta: MetricsDelta | null = input.delta.kind === 'changed' ? input.delta : null;
+  const result = await judge.judge({
+    filePath: input.path,
+    prDescription: input.prDescription ?? null,
+    baseSource: input.baseSource,
+    headSource,
+    baseMetrics,
+    headMetrics: head.metrics,
+    baseRenders,
+    headRenders,
+    delta: fileDelta,
+    dfmViolations: input.dfmViolations,
+  });
+  if (!result.ok) {
+    input.logger?.warn(`judge failed for ${input.path}: ${result.error.code} — ${result.error.message}`);
+    return undefined;
+  }
+  return result.verdict;
 }

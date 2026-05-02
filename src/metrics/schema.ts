@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { MetricsDeltaSchema, MetricsSchema } from '../core/types.ts';
 import { RunErrorKindSchema } from '../drivers/types.ts';
+import { JudgeVerdictSchema } from '../judges/types.ts';
 import { RenderPathsSchema } from '../render/types.ts';
 import { RuleViolationSchema } from './dfm.ts';
 
@@ -45,6 +46,7 @@ export const FileResultSchema = z.discriminatedUnion('status', [
     head: FileSideSchema,
     delta: DeltaSchema,
     dfmViolations: z.array(RuleViolationSchema).default([]),
+    judge: JudgeVerdictSchema.optional(),
   }),
 ]);
 export type FileResult = z.infer<typeof FileResultSchema>;
@@ -59,6 +61,7 @@ export const CheckReportSchema = z.object({
     filesFailed: z.number().int(),
     filesSkipped: z.number().int(),
     filesWithViolations: z.number().int().default(0),
+    filesWithJudgeBlock: z.number().int().default(0),
   }),
 });
 export type CheckReport = z.infer<typeof CheckReportSchema>;

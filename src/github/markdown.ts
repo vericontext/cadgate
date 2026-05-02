@@ -1,3 +1,4 @@
+import type { JudgeVerdict } from '../judges/types.ts';
 import type { CheckReport, FileResult } from '../metrics/schema.ts';
 import { RENDER_VIEWS } from '../render/types.ts';
 
@@ -28,10 +29,20 @@ export function renderMarkdown(report: CheckReport, resolveImage: ImageResolver)
 }
 
 function headlineFor(report: CheckReport): string {
-  const { filesFailed, filesWithViolations } = report.summary;
+  const { filesFailed, filesWithViolations, filesWithJudgeBlock } = report.summary;
   if (filesWithViolations > 0) return `❌ ${filesWithViolations} violation${filesWithViolations === 1 ? '' : 's'}`;
   if (filesFailed > 0) return `❌ ${filesFailed} file${filesFailed === 1 ? '' : 's'} failed`;
+  if (filesWithJudgeBlock > 0) {
+    return `❌ ${filesWithJudgeBlock} judge block${filesWithJudgeBlock === 1 ? '' : 's'}`;
+  }
+  if (anyJudgeCommentOnly(report)) return '⚠️ judge comments';
   return '✅ all checks passed';
+}
+
+function anyJudgeCommentOnly(report: CheckReport): boolean {
+  return report.files.some(
+    (f) => f.status === 'analyzed' && f.judge?.verdict === 'comment-only',
+  );
 }
 
 function summaryTable(report: CheckReport): string {
@@ -87,8 +98,42 @@ function renderFileSection(file: FileResult & { status: 'analyzed' }, resolveIma
     out.push('');
     out.push('</details>');
   }
+  if (file.judge) {
+    out.push(...renderJudgeSection(file.judge));
+  }
   out.push('');
   return out;
+}
+
+function renderJudgeSection(verdict: JudgeVerdict): string[] {
+  const out: string[] = [];
+  out.push('');
+  out.push(`<!-- cadgate:judge:v1 modelId=${verdict.modelId} -->`);
+  out.push(`#### Judge — ${verdict.modelId}`);
+  out.push('');
+  out.push(
+    `**Verdict:** ${verdictBadge(verdict.verdict)} · intent **${verdict.intentMatch}**${
+      verdict.promptCacheHit ? ' · cache hit' : ''
+    }`,
+  );
+  out.push('');
+  for (const reason of verdict.reasons) {
+    out.push(`- ${reason}`);
+  }
+  out.push('');
+  out.push(`> ${verdict.noteForHuman.replace(/\n/g, '\n> ')}`);
+  return out;
+}
+
+function verdictBadge(v: JudgeVerdict['verdict']): string {
+  switch (v) {
+    case 'pass':
+      return '✅ pass';
+    case 'block':
+      return '❌ block';
+    case 'comment-only':
+      return '⚠️ comment-only';
+  }
 }
 
 function formatMinWall(mm: number): string {

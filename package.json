@@ -1,6 +1,6 @@
 {
   "name": "cadgate",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Validate AI-generated CAD-as-code PRs (CadQuery / Build123d / OpenSCAD / KCL).",
   "type": "module",
   "private": true,
@@ -22,6 +22,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.92.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@octokit/graphql": "^8",
     "@octokit/rest": "^22",

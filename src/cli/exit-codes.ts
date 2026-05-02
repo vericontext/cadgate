@@ -25,6 +25,8 @@ export type ErrorCode =
   | 'RULE_VIOLATION'
   | 'GITHUB_AUTH'
   | 'GITHUB_API'
+  | 'JUDGE_AUTH'
+  | 'JUDGE_API'
   | 'INTERNAL';
 
 export function exitCodeForError(code: ErrorCode): ExitCode {
@@ -43,6 +45,8 @@ export function exitCodeForError(code: ErrorCode): ExitCode {
     case 'GIT_ERROR':
     case 'GITHUB_AUTH':
     case 'GITHUB_API':
+    case 'JUDGE_AUTH':
+    case 'JUDGE_API':
     case 'INTERNAL':
       return EXIT.GENERAL_ERROR;
   }

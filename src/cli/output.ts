@@ -38,13 +38,14 @@ function renderTextReport(report: CheckReport): string {
       C.dim(`  (${report.files.length} files)`),
   );
   for (const file of report.files) {
-    lines.push(...renderFileLines(file), ...renderViolationLines(file));
+    lines.push(...renderFileLines(file), ...renderViolationLines(file), ...renderJudgeLines(file));
   }
   lines.push('');
-  const { filesChanged, filesFailed, filesSkipped, filesWithViolations } = report.summary;
+  const { filesChanged, filesFailed, filesSkipped, filesWithViolations, filesWithJudgeBlock } = report.summary;
   const parts: string[] = [];
   if (filesWithViolations > 0) parts.push(C.red(`✗ ${filesWithViolations} rule violations`));
   if (filesFailed > 0) parts.push(C.red(`✗ ${filesFailed} failed`));
+  if (filesWithJudgeBlock > 0) parts.push(C.red(`✗ ${filesWithJudgeBlock} judge block${filesWithJudgeBlock === 1 ? '' : 's'}`));
   if (parts.length === 0) parts.push(C.green('✓ all checks passed'));
   lines.push(
     `${parts.join('  ')}  ${C.dim(`(${filesChanged} changed, ${filesSkipped} skipped)`)}`,
@@ -86,4 +87,16 @@ function renderViolationLines(file: FileResult): string[] {
     const tag = v.severity === 'error' ? C.red(`! ${v.ruleId}`) : C.yellow(`~ ${v.ruleId}`);
     return `      ${tag}: ${v.message}`;
   });
+}
+
+function renderJudgeLines(file: FileResult): string[] {
+  if (file.status !== 'analyzed' || !file.judge) return [];
+  const j = file.judge;
+  const tag =
+    j.verdict === 'block'
+      ? C.red(`! judge=block`)
+      : j.verdict === 'comment-only'
+        ? C.yellow(`~ judge=comment`)
+        : C.green(`✓ judge=pass`);
+  return [`      ${tag} (intent=${j.intentMatch}): ${j.noteForHuman.split('\n')[0]}`];
 }

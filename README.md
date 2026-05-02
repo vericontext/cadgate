@@ -115,6 +115,31 @@ CADGate ships an MCP stdio server so agents can self-validate generated CAD code
 
 The MCP server reuses the same Docker sidecars and Chromium dependencies as `cadgate check`. To launch without the renderer: `cadgate mcp serve --no-render`.
 
+## LLM judge (opt-in)
+
+`cadgate check` can call an LLM to compare the head geometry against the human-authored PR description and return a structured verdict (`pass` / `block` / `comment-only`) grounded in the renders + metrics + DFM violations the engine already produced.
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-… cadgate check \
+  --base main --head HEAD \
+  --judge opus \
+  --pr-description-file pr-body.txt
+```
+
+The verdict appears as a typed `judge` field on each analyzed file in the JSON report and as a **Judge** section in the sticky PR comment (verdict badge, intent match, grounded reasons, plain-prose note). Default is `--judge=none` so production CI doesn't accrue Anthropic costs by accident.
+
+| Flag | Purpose |
+|------|---------|
+| `--judge none\|opus\|sonnet` | Choose the model. `opus` → `claude-opus-4-7`, `sonnet` → `claude-sonnet-4-6`. |
+| `--judge-model <id>` | Override the exact model id (e.g. `claude-opus-4-7-1m`). |
+| `--pr-description "<text>"` | PR description text passed to the judge. |
+| `--pr-description-file <path>` | Read the PR description from a file. CI flow: `gh pr view --json body -q .body > pr-body.txt`. |
+| `--anthropic-api-key <key>` | Override the `ANTHROPIC_API_KEY` env. |
+
+**Prompt caching is on by default.** The system prompt, tool schema, and the entire base side (source + metrics + 6 renders) are cached with `cache_control: ephemeral`. Successive pushes to the same PR re-use the cached prefix and pay only for the changed head side — typically a >5× cost drop after the first call within the cache TTL.
+
+**Cost ballpark (Opus 4.7, 12-image cold call):** ~$0.30 cold, ~$0.05 warm. Treat as a reviewer-grade signal, not a per-commit linter.
+
 ## Architecture
 
 CADGate runs as a single compiled binary with two interface adapters:
@@ -133,8 +158,8 @@ CAD code runs in Python Docker sidecars (CadQuery / Build123d are Python-only on
 
 ## Roadmap
 
-- **LLM judge** — feed renders + metric diff + PR description to Claude Opus / GPT / Gemini for intent-vs-actual verdicts. Lets the comment cite *why* a change looks like a regression vs an intentional redesign.
-- **`cadgate mcp serve`** — expose the same engine via Model Context Protocol so agentic CAD generators (Cursor, Claude Code, Zoo Zookeeper, etc.) can self-validate before opening PRs.
+- **`cad_judge` MCP tool** — expose the same judge driver as a 5th MCP tool so agentic CAD generators can call it inline during generation, not just as a CI gate.
+- **OpenAI + Gemini judge drivers** — same `JudgeDriver` interface; swap in via `--judge=gpt5` / `--judge=gemini`.
 - **OpenSCAD + KCL drivers**.
 - **Hosted playground** at cadgate.dev (paste two STL/source revisions, get a CADGate report instantly).
 - **Public benchmark leaderboard** for AI-generated-CAD regressions across active OSS hardware repos.

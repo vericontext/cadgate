@@ -50,7 +50,7 @@ const report: CheckReport = {
       ],
     },
   ],
-  summary: { filesChanged: 1, filesFailed: 0, filesSkipped: 0, filesWithViolations: 1 },
+  summary: { filesChanged: 1, filesFailed: 0, filesSkipped: 0, filesWithViolations: 1, filesWithJudgeBlock: 0 },
 };
 
 describe('renderMarkdown', () => {
@@ -89,9 +89,37 @@ describe('renderMarkdown', () => {
           dfmViolations: [],
         },
       ],
-      summary: { filesChanged: 1, filesFailed: 0, filesSkipped: 0, filesWithViolations: 0 },
+      summary: { filesChanged: 1, filesFailed: 0, filesSkipped: 0, filesWithViolations: 0, filesWithJudgeBlock: 0 },
     };
     const okMd = renderMarkdown(okReport, (p) => p);
     expect(okMd).toContain('all checks passed');
+  });
+
+  test('judge block headline + section', () => {
+    const judgeReport: CheckReport = {
+      ...report,
+      files: [
+        {
+          ...(report.files[0] as Extract<CheckReport['files'][number], { status: 'analyzed' }>),
+          dfmViolations: [],
+          judge: {
+            verdict: 'block',
+            intentMatch: 'differs',
+            reasons: ['Volume regressed by 98.8%, head looks empty.'],
+            noteForHuman: 'The head geometry appears nearly empty — recommend rework.',
+            modelId: 'claude-opus-4-7',
+            promptCacheHit: true,
+          },
+        },
+      ],
+      summary: { filesChanged: 1, filesFailed: 0, filesSkipped: 0, filesWithViolations: 0, filesWithJudgeBlock: 1 },
+    };
+    const md = renderMarkdown(judgeReport, (p) => p);
+    expect(md).toContain('1 judge block');
+    expect(md).toContain('#### Judge — claude-opus-4-7');
+    expect(md).toContain('cadgate:judge:v1');
+    expect(md).toContain('intent **differs**');
+    expect(md).toContain('cache hit');
+    expect(md).toContain('recommend rework');
   });
 });
