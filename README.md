@@ -1,5 +1,8 @@
 # CADGate
 
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-CADGate-blue?logo=github)](https://github.com/marketplace/actions/cadgate)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Validate AI-generated CAD-as-code PRs (CadQuery / Build123d) — geometric metric diff, DFM rules, 6-view rendered PR previews, and an LLM judge that compares head geometry against the human-authored PR description.
 
 ![CADGate's LLM judge catching an agent-generated CAD bug: .rect(10, 10).cutThruAll() was committed for a vent the PR specifies as a Ø10 mm round bore. Judge blocks the merge and proposes .circle(5).](assets/demo.gif)
