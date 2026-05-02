@@ -25,7 +25,14 @@ export interface McpError {
   message: string;
 }
 
-export type McpToolResult<T> = { ok: true; data: T } | { ok: false; error: McpError };
+export interface ImageBlock {
+  data: string; // base64
+  mimeType: string;
+}
+
+export type McpToolResult<T> =
+  | { ok: true; data: T; images?: ImageBlock[] }
+  | { ok: false; error: McpError };
 
 const RUN_KIND_TO_MCP: Record<RunErrorKind, McpErrorCode> = {
   timeout: 'DRIVER_TIMEOUT',

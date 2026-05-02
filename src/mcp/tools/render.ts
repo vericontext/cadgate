@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { type RenderPaths, type RenderView, RENDER_VIEWS } from '../../render/types.ts';
 import type { Language } from '../types.ts';
 import type { McpState } from '../state.ts';
-import { mapRunError, runSourceToMetrics, type McpToolResult } from './_shared.ts';
+import { type ImageBlock, mapRunError, runSourceToMetrics, type McpToolResult } from './_shared.ts';
 
 export interface RenderOk {
   renders: Partial<RenderPaths>;
@@ -14,6 +14,7 @@ export async function render(
     source: string;
     language?: Language;
     views?: RenderView[];
+    inline: boolean;
     timeoutMs: number;
   },
 ): Promise<McpToolResult<RenderOk>> {
@@ -55,7 +56,20 @@ export async function render(
     const requested = args.views ?? RENDER_VIEWS;
     const renders: Partial<RenderPaths> = {};
     for (const v of requested) renders[v] = allViews[v];
-    return { ok: true, data: { renders } };
+
+    let images: ImageBlock[] | undefined;
+    if (args.inline) {
+      images = [];
+      for (const v of requested) {
+        const bytes = await Bun.file(allViews[v]).bytes();
+        images.push({
+          data: Buffer.from(bytes).toString('base64'),
+          mimeType: 'image/png',
+        });
+      }
+    }
+
+    return { ok: true, data: { renders }, images };
   } finally {
     r.data.dispose();
   }

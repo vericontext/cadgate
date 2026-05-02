@@ -14,10 +14,14 @@ export interface CreateServerOptions {
   logger: Logger;
 }
 
+type ContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; data: string; mimeType: string };
+
 interface ToolCallResponse {
   [key: string]: unknown;
   structuredContent?: Record<string, unknown>;
-  content: Array<{ type: 'text'; text: string }>;
+  content: ContentBlock[];
   isError?: boolean;
 }
 
@@ -93,10 +97,13 @@ async function callTool<T>(
 function respond<T>(result: McpToolResult<T>, logger: Logger): ToolCallResponse {
   if (result.ok) {
     const payload = { ok: true, ...((result.data as Record<string, unknown>) ?? {}) };
-    return {
-      structuredContent: payload,
-      content: [{ type: 'text', text: JSON.stringify(payload) }],
-    };
+    const content: ContentBlock[] = [{ type: 'text', text: JSON.stringify(payload) }];
+    if (result.images) {
+      for (const img of result.images) {
+        content.push({ type: 'image', data: img.data, mimeType: img.mimeType });
+      }
+    }
+    return { structuredContent: payload, content };
   }
   logger.warn(`tool error ${result.error.code}: ${result.error.message}`);
   const errPayload = { ok: false, error: result.error };

@@ -40,5 +40,7 @@ export const renderInput = {
   source: z.string().min(1),
   language: LanguageSchema.optional(),
   views: z.array(RenderViewSchema).min(1).optional(),
+  /** Embed each PNG as a base64 image content block in the response so MCP clients render them inline. */
+  inline: z.boolean().default(true),
   timeoutMs: z.number().int().positive().default(60000),
 };
