@@ -5,36 +5,40 @@ import { RenderViewSchema } from '../render/types.ts';
 export const LanguageSchema = z.enum(['cadquery', 'build123d']);
 export type Language = z.infer<typeof LanguageSchema>;
 
-const sourceField = z.string().min(1);
-const timeoutField = z.number().int().positive().default(60000);
-
-/** zod raw shapes — the MCP SDK consumes ZodRawShape, not z.object(...). */
+/**
+ * zod raw shapes — the MCP SDK consumes ZodRawShape, not z.object(...).
+ *
+ * Important: every field gets a *fresh* zod instance. Reusing the same
+ * instance across multiple fields causes zod-to-json-schema to dedupe
+ * via `$ref`, which some MCP clients can't resolve and end up dropping
+ * the field at the wire layer.
+ */
 
 export const validateInput = {
-  source: sourceField,
+  source: z.string().min(1),
   language: LanguageSchema.optional(),
   rules: DfmRulesSchema.optional(),
   render: z.boolean().default(false),
-  timeoutMs: timeoutField,
+  timeoutMs: z.number().int().positive().default(60000),
 };
 
 export const diffInput = {
-  baseSource: sourceField,
-  headSource: sourceField,
+  baseSource: z.string().min(1),
+  headSource: z.string().min(1),
   language: LanguageSchema.optional(),
-  timeoutMs: timeoutField,
+  timeoutMs: z.number().int().positive().default(60000),
 };
 
 export const dfmInput = {
-  source: sourceField,
+  source: z.string().min(1),
   rules: DfmRulesSchema,
   language: LanguageSchema.optional(),
-  timeoutMs: timeoutField,
+  timeoutMs: z.number().int().positive().default(60000),
 };
 
 export const renderInput = {
-  source: sourceField,
+  source: z.string().min(1),
   language: LanguageSchema.optional(),
   views: z.array(RenderViewSchema).min(1).optional(),
-  timeoutMs: timeoutField,
+  timeoutMs: z.number().int().positive().default(60000),
 };
