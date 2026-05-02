@@ -34,6 +34,29 @@ inputs:
     description: cadgate release tag to download (default 'latest').
     required: false
     default: latest
+  judge:
+    description: |
+      LLM judge mode — 'none' / 'opus' / 'sonnet'. When non-'none', requires
+      anthropic-api-key. Default 'none' so CI doesn't accrue Anthropic API
+      costs by accident.
+    required: false
+    default: none
+  judge-model:
+    description: Override the exact judge model id (e.g. claude-opus-4-7-1m).
+    required: false
+    default: ''
+  pr-description:
+    description: |
+      Human-authored PR description passed to the judge. Defaults to the PR
+      body when running on a pull_request event.
+    required: false
+    default: ${{ github.event.pull_request.body }}
+  anthropic-api-key:
+    description: |
+      Anthropic API key. Required when `judge` is 'opus' or 'sonnet'. Pass
+      via a GitHub Actions secret (e.g. ${{ secrets.ANTHROPIC_API_KEY }}).
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -74,14 +97,31 @@ runs:
       shell: bash
       env:
         CI: 'true'
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        # Route the PR body through env, not shell expansion — bodies often
+        # contain quotes / newlines / backticks that would break inline
+        # template substitution.
+        CADGATE_PR_DESCRIPTION: ${{ inputs.pr-description }}
+        CADGATE_JUDGE: ${{ inputs.judge }}
+        CADGATE_JUDGE_MODEL: ${{ inputs.judge-model }}
       run: |
-        cadgate check \
-          --base "${{ inputs.base-ref }}" \
-          --head "${{ inputs.head-ref }}" \
-          --rules "${{ inputs.rules }}" \
-          --render "${{ inputs.render }}" \
-          --render-out /tmp/cadgate-renders \
-          --report json > /tmp/cadgate-report.json
+        args=(
+          --base "${{ inputs.base-ref }}"
+          --head "${{ inputs.head-ref }}"
+          --rules "${{ inputs.rules }}"
+          --render "${{ inputs.render }}"
+          --render-out /tmp/cadgate-renders
+          --judge "$CADGATE_JUDGE"
+          --report json
+        )
+        if [ -n "$CADGATE_JUDGE_MODEL" ]; then
+          args+=(--judge-model "$CADGATE_JUDGE_MODEL")
+        fi
+        if [ "$CADGATE_JUDGE" != 'none' ] && [ -n "$CADGATE_PR_DESCRIPTION" ]; then
+          printf '%s' "$CADGATE_PR_DESCRIPTION" > /tmp/cadgate-pr-body.txt
+          args+=(--pr-description-file /tmp/cadgate-pr-body.txt)
+        fi
+        cadgate check "${args[@]}" > /tmp/cadgate-report.json
 
     - name: cadgate report post-pr
       if: |

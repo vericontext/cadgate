@@ -23,9 +23,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: vericontext/cadgate@v0.1.0
+      - uses: vericontext/cadgate@v0.4.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: enable the LLM judge for intent-vs-geometry verdicts
+          # judge: opus
+          # anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
 A typical PR gets:
