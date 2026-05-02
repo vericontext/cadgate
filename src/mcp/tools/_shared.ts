@@ -2,6 +2,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CadDriver, RunErrorKind } from '../../drivers/types.ts';
 import { pickDriverFor } from '../../drivers/registry.ts';
+import type { JudgeError } from '../../judges/types.ts';
 import { analyzeStl, type ParsedMesh } from '../../metrics/manifold.ts';
 import type { ManifoldInstance } from '../../metrics/manifold.ts';
 import type { Metrics } from '../../core/types.ts';
@@ -18,6 +19,8 @@ export type McpErrorCode =
   | 'DOCKER_IMAGE_MISSING'
   | 'MESH_INVALID'
   | 'CHROMIUM_UNAVAILABLE'
+  | 'JUDGE_AUTH'
+  | 'JUDGE_API'
   | 'INTERNAL';
 
 export interface McpError {
@@ -47,6 +50,19 @@ const RUN_KIND_TO_MCP: Record<RunErrorKind, McpErrorCode> = {
 
 export function mapRunError(kind: RunErrorKind, message: string): McpError {
   return { code: RUN_KIND_TO_MCP[kind], message };
+}
+
+export function mapJudgeError(err: JudgeError): McpError {
+  switch (err.code) {
+    case 'JUDGE_AUTH':
+      return { code: 'JUDGE_AUTH', message: err.message };
+    case 'JUDGE_API':
+      return { code: 'JUDGE_API', message: err.message };
+    case 'NO_VERDICT':
+      return { code: 'JUDGE_API', message: `no verdict: ${err.message}` };
+    case 'BAD_VERDICT_SHAPE':
+      return { code: 'JUDGE_API', message: `bad verdict shape: ${err.message}` };
+  }
 }
 
 function chooseDriver(

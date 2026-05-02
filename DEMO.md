@@ -7,9 +7,10 @@ End-to-end verification of `cadgate mcp serve` from a real MCP client (Claude De
 | | Required for |
 |--|--|
 | **Claude Desktop** (or Cursor / Cline / Continue — any MCP-stdio client) | All tools |
-| **Docker Desktop, running** | `cad_validate`, `cad_diff`, `cad_dfm_check`, `cad_render` |
+| **Docker Desktop, running** | `cad_validate`, `cad_diff`, `cad_dfm_check`, `cad_render`, `cad_judge` |
 | `kiyeonj21/cadquery-sidecar:0.2` + `kiyeonj21/build123d-sidecar:0.2` images | All tools (`docker pull` if not local) |
-| **Chromium 120+** (`brew install chromium` / `apt install chromium-browser`) | `cad_render` only |
+| **Chromium 120+** (`brew install chromium` / `apt install chromium-browser`) | `cad_render`, `cad_judge` (vision input) |
+| **Anthropic API key** (`ANTHROPIC_API_KEY`) | `cad_judge` only |
 
 The binary itself is self-contained — Bun runtime + JS deps are bundled.
 
@@ -22,11 +23,14 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` and add a
   "mcpServers": {
     "cadgate": {
       "command": "/usr/local/bin/cadgate",
-      "args": ["mcp", "serve"]
+      "args": ["mcp", "serve"],
+      "env": { "ANTHROPIC_API_KEY": "sk-ant-..." }
     }
   }
 }
 ```
+
+The `env` block is the recommended way to pass the Anthropic key — Claude Desktop launches `cadgate mcp serve` from its own shell, which doesn't inherit your `~/.zshrc` exports. Without the key, four tools work normally and `cad_judge` returns `JUDGE_AUTH`. Alternative: pass `--anthropic-api-key sk-ant-...` in `args` instead of using `env`.
 
 If you haven't run the install `curl` from the [README](./README.md#install-the-cli-locally), point `command` at the source build instead:
 
@@ -34,17 +38,17 @@ If you haven't run the install `curl` from the [README](./README.md#install-the-
 "command": "/absolute/path/to/cadgate/dist/cadgate"
 ```
 
-Quit Claude Desktop completely (`Cmd+Q`, **not** just close the window) and reopen. In the connector list (`+ → Connectors`), `cadgate` should appear with a `LOCAL DEV` badge and four tools listed under **Tool access** → **Other tools**: `cad_validate`, `cad_diff`, `cad_dfm_check`, `cad_render`.
+Quit Claude Desktop completely (`Cmd+Q`, **not** just close the window) and reopen. In the connector list (`+ → Connectors`), `cadgate` should appear with a `LOCAL DEV` badge and five tools listed under **Tool access** → **Other tools**: `cad_validate`, `cad_diff`, `cad_dfm_check`, `cad_render`, `cad_judge`.
 
 ## A note on Claude's lazy tool loading
 
-Claude Desktop loads MCP tools on-demand based on prompt relevance. Your first prompt may have only 3 of the 4 tools in Claude's working set — if it tells you a tool isn't available, run this once to prime it:
+Claude Desktop loads MCP tools on-demand based on prompt relevance. Your first prompt may have only a subset of the 5 tools in Claude's working set — if it tells you a tool isn't available, run this once to prime it:
 
 ```
 List every MCP tool you can call from the cadgate connector. Print just the tool names.
 ```
 
-After that, all four are accessible for the rest of the session.
+After that, all five are accessible for the rest of the session.
 
 ## Tool 1: `cad_validate`
 
@@ -184,18 +188,84 @@ The model now sees the renders directly and can reason about them, even though t
 
 This is a valid result — the fallback fires correctly. Install Chromium and retry.
 
+## Tool 5: `cad_judge`
+
+Calls Claude Opus 4.7 (or Sonnet 4.6) to compare head geometry against the human-authored PR description and return a structured verdict (`pass` / `block` / `comment-only`) grounded in the metrics + DFM violations + 6-view renders the engine produces. Requires `ANTHROPIC_API_KEY` (set via the `env` block in your MCP config — see Setup).
+
+Prompt:
+
+```
+Use cadgate.cad_judge to review this PR.
+
+baseSource:
+import cadquery as cq
+result = cq.Workplane("XY").box(20, 20, 20)
+
+headSource:
+import cadquery as cq
+result = cq.Workplane("XY").box(22, 22, 22)
+
+prDescription:
+Make the cube slightly bigger.
+```
+
+Expected (first call ~10–18s for sidecar + render + Anthropic; ~5s warm thanks to prompt caching):
+
+| Field | Value |
+|-------|-------|
+| `verdict` | `"pass"` |
+| `intentMatch` | `"matches"` |
+| `reasons[0]` | mentions `+33%` volume or `22mm` bbox |
+| `dfmViolations` | `[]` |
+| `headMetrics.volume` | ≈ 10648 |
+| `delta.volumeDeltaPct` | ≈ 33.1 |
+| `modelId` | `"claude-opus-4-7"` |
+| `promptCacheHit` | `false` first call → `true` on rerun within 5 min |
+
+The response also includes the underlying `baseMetrics` / `headMetrics` / `delta` / `dfmViolations` so you can read the verdict and the supporting numbers in one tool turn — no need for a parallel `cad_diff` call.
+
+To smoke-test the `block` path, swap `headSource` to a `0.5mm`-shelled cube and pass `rules: {version: 1, rules: [{id: 'min-wall-thickness', minMm: 1.2, severity: 'error'}]}`. The judge will report `verdict: block`, list the DFM violation as a reason, and (per Phase 3 verification) often distinguish the intent-match call from the policy violation in `noteForHuman`.
+
+### Cost note
+
+Opus 4.7 with 12 vision images runs ~$0.30 cold per call. Prompt caching (system prompt + tool schema + entire base side) drops repeat calls against the same base to ~$0.05 within the 5-minute cache TTL. Treat this as a reviewer-grade signal, not a per-keystroke linter.
+
+### When the API key isn't configured
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "JUDGE_AUTH",
+    "message": "Anthropic API key not configured. Restart cadgate mcp serve with --anthropic-api-key or ANTHROPIC_API_KEY env."
+  }
+}
+```
+
+Add the key to the `env` block in your MCP config (Setup section above), then `Cmd+Q` and reopen Claude Desktop.
+
 ## Closing the agentic loop
 
-The whole point of the MCP server is making validation cheap *during* generation, not after. Try a self-correction loop:
+The whole point of the MCP server is making validation cheap *during* generation, not after. The full self-correction loop now runs entirely inside the chat:
 
 ```
-Generate a CadQuery script for a 20×20×3 mm phone-stand bracket. Then use
-cadgate.cad_validate (with rules: min-wall-thickness=1.2mm, watertight=true)
-to check your output. If anything fails, rewrite the script and re-validate
-until both rules pass.
+Generate a CadQuery script for a 20×20×3 mm phone-stand bracket.
+
+1. Use cadgate.cad_validate with rules:
+   - min-wall-thickness = 1.2mm
+   - watertight
+   to check your output. If anything fails, rewrite and re-validate until clean.
+
+2. Once cad_validate is clean, use cadgate.cad_judge with
+   prDescription="20×20×3 mm phone-stand bracket"
+   to confirm the geometry matches the intent.
+
+3. If cad_judge returns verdict != "pass", read the reasons, rewrite, and
+   loop back to step 1. Stop only when both cad_validate is clean AND
+   cad_judge returns "pass".
 ```
 
-What you should see: Claude generates → calls `cad_validate` with rules → reads violations → rewrites → calls `cad_validate` again → loops until clean.
+What you should see: Claude generates → `cad_validate` (DFM violations, e.g. min-wall fails) → rewrites → `cad_validate` clean → `cad_judge` (verdict + intent check) → reads reasons → rewrites if `block` → loops until `pass` on both. The judge step catches "looks structurally fine but doesn't match the description" — exactly the failure mode metrics alone can't see.
 
 ## Troubleshooting
 
@@ -206,7 +276,9 @@ What you should see: Claude generates → calls `cad_validate` with rules → re
 | `DOCKER_IMAGE_MISSING` | Sidecar images not pulled | `docker pull kiyeonj21/cadquery-sidecar:0.2 && docker pull kiyeonj21/build123d-sidecar:0.2` |
 | `NO_DRIVER` | Source has no `import cadquery` / `import build123d` line | Add the import; the registry sniffs that to pick the right driver. |
 | `CHROMIUM_UNAVAILABLE` (only on `cad_render`) | Chromium not installed | `brew install chromium` (macOS) or `apt install chromium-browser` (Linux). |
-| `cad_validate` "not available" on first call | Claude's lazy tool-loading | Prime the session with the tool-list prompt above. |
+| `JUDGE_AUTH` (only on `cad_judge`) | `ANTHROPIC_API_KEY` not set at server start | Add `"env": {"ANTHROPIC_API_KEY": "sk-ant-..."}` to the cadgate entry in `claude_desktop_config.json`, then `Cmd+Q` and reopen. |
+| `JUDGE_API` | Anthropic call failed (rate limit, model glitch, etc.) | Retry. Check `~/Library/Logs/Claude/mcp-server-cadgate.log` for the upstream error message. |
+| `cad_validate` / `cad_judge` "not available" on first call | Claude's lazy tool-loading | Prime the session with the tool-list prompt above. |
 | Tool call hangs > 60 s | First-time docker pull or stuck container | Check `docker ps`; the sidecar image's first run can be slow. Subsequent calls are fast. |
 
 For deeper debugging, Claude Desktop logs MCP I/O at `~/Library/Logs/Claude/mcp-server-cadgate.log` — every JSON-RPC frame in and out, plus our server's stderr (init banner, lazy-Chromium warnings, etc.).

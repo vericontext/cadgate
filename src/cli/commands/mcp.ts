@@ -14,9 +14,19 @@ const serveCommand = defineCommand({
       type: 'boolean',
       description: 'Disable Chromium init even if available.',
     },
+    'anthropic-api-key': {
+      type: 'string',
+      description: 'Anthropic API key for cad_judge (else read from ANTHROPIC_API_KEY).',
+    },
   },
   async run({ args }) {
-    const state = createMcpState({ logger, allowChromium: !args['no-render'] });
+    const apiKey = args['anthropic-api-key'] ?? Bun.env.ANTHROPIC_API_KEY;
+    const state = createMcpState({
+      logger,
+      allowChromium: !args['no-render'],
+      apiKey,
+    });
+    if (!apiKey) logger.info('cad_judge disabled (no Anthropic API key)');
     const server = createCadgateMcpServer({ state, logger });
     const transport = new StdioServerTransport();
 

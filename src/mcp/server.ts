@@ -4,9 +4,10 @@ import type { Logger } from '../cli/logger.ts';
 import type { McpState } from './state.ts';
 import { dfmCheck } from './tools/dfm-check.ts';
 import { diff } from './tools/diff.ts';
+import { judge } from './tools/judge.ts';
 import { render } from './tools/render.ts';
 import type { McpToolResult } from './tools/_shared.ts';
-import { dfmInput, diffInput, renderInput, validateInput } from './types.ts';
+import { dfmInput, diffInput, judgeInput, renderInput, validateInput } from './types.ts';
 import { validate } from './tools/validate.ts';
 
 export interface CreateServerOptions {
@@ -71,6 +72,23 @@ export function createCadgateMcpServer({ state, logger }: CreateServerOptions): 
       inputSchema: renderInput,
     },
     (args) => callTool(() => render(state, args), logger),
+  );
+
+  server.registerTool(
+    'cad_judge',
+    {
+      description:
+        'Run base + head CAD sources, render both, evaluate optional DFM rules, then ask an ' +
+        'Anthropic LLM (Opus 4.7 or Sonnet 4.6) for a structured verdict ' +
+        '(pass/block/comment-only), an intent-match assessment vs the PR description, ' +
+        'a reasons[] list grounded in metrics + renders, and a one-paragraph note for the ' +
+        'human reviewer. Returns the verdict alongside the underlying metrics, delta, and ' +
+        'DFM violations so the agent can self-correct without a second tool call. ' +
+        'Requires ANTHROPIC_API_KEY at server start; uses prompt caching (90% off on ' +
+        're-runs against the same base). `timeoutMs` gates the engine, not the judge call.',
+      inputSchema: judgeInput,
+    },
+    (args) => callTool(() => judge(state, args), logger),
   );
 
   return server;

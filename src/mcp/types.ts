@@ -50,3 +50,16 @@ export const renderInput = {
   inline: z.boolean().default(false),
   timeoutMs: z.number().int().positive().default(60000),
 };
+
+export const judgeInput = {
+  baseSource: z.string().min(1).optional(),
+  headSource: z.string().min(1),
+  prDescription: z.string().optional(),
+  filePath: z.string().min(1).default('head.py'),
+  rules: DfmRulesSchema.optional(),
+  language: LanguageSchema.optional(),
+  judge: z.enum(['opus', 'sonnet']).default('opus'),
+  model: z.string().optional(),
+  render: z.boolean().default(true),
+  timeoutMs: z.number().int().positive().default(60000),
+};

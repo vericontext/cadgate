@@ -110,10 +110,11 @@ CADGate ships an MCP stdio server so agents can self-validate generated CAD code
 | `cad_diff` | `baseSource`, `headSource`, optional `language` | base + head metrics + delta (volume, area, watertight, bbox, min-wall) |
 | `cad_dfm_check` | `source`, `rules`, optional `language` | rule violations |
 | `cad_render` | `source`, optional `language`, `views` (default all 6) | PNG paths on local disk |
+| `cad_judge` | `headSource` + optional `baseSource`, `prDescription`, `rules`, `judge` (`opus`/`sonnet`) | structured verdict (`pass`/`block`/`comment-only`) + intent match + grounded reasons + the underlying metrics/delta/violations |
 
 `language` is auto-detected from `import cadquery` / `import build123d` when omitted. Rendered PNGs persist for the MCP server's lifetime, then are cleaned up on shutdown — read them right after the call.
 
-The MCP server reuses the same Docker sidecars and Chromium dependencies as `cadgate check`. To launch without the renderer: `cadgate mcp serve --no-render`.
+The MCP server reuses the same Docker sidecars and Chromium dependencies as `cadgate check`. To launch without the renderer: `cadgate mcp serve --no-render`. `cad_judge` requires `ANTHROPIC_API_KEY` at server start — pass it via the `env` block of your MCP client's config (Claude Desktop's per-server `env` is the cleanest path, since the MCP client's launch shell doesn't inherit your `~/.zshrc` exports), or via `--anthropic-api-key`. Without the key, the other 4 tools work normally and `cad_judge` returns `JUDGE_AUTH`.
 
 ## LLM judge (opt-in)
 
@@ -158,7 +159,6 @@ CAD code runs in Python Docker sidecars (CadQuery / Build123d are Python-only on
 
 ## Roadmap
 
-- **`cad_judge` MCP tool** — expose the same judge driver as a 5th MCP tool so agentic CAD generators can call it inline during generation, not just as a CI gate.
 - **OpenAI + Gemini judge drivers** — same `JudgeDriver` interface; swap in via `--judge=gpt5` / `--judge=gemini`.
 - **OpenSCAD + KCL drivers**.
 - **Hosted playground** at cadgate.dev (paste two STL/source revisions, get a CADGate report instantly).
