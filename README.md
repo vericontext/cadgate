@@ -2,6 +2,10 @@
 
 Validate AI-generated CAD-as-code PRs (CadQuery / Build123d) — geometric metric diff, DFM rules, 6-view rendered PR previews, and an LLM judge that compares head geometry against the human-authored PR description.
 
+![CADGate's LLM judge catching an agent-generated CAD bug: .rect(10, 10).cutThruAll() was committed for a vent the PR specifies as a Ø10 mm round bore. Judge blocks the merge and proposes .circle(5).](assets/demo.gif)
+
+*An agent committed `.rect(10, 10).cutThruAll()` for a vent the PR specifies as a Ø10 mm round bore. Metrics + DFM alone silently pass the PR — every field is plausible. CADGate's judge catches the shape mismatch by reading the code, the renders, and the PR text together.*
+
 Pairs naturally with code-generation tools that emit parametric CAD as Python source — e.g. AI coding agents using [text-to-cad](https://github.com/earthtojake/text-to-cad), [cad-agent](https://github.com/Svetlana-DAO-LLC/cad-agent), or [CQAsk](https://github.com/OpenOrion/CQAsk). Those tools generate; CADGate is the review layer that catches what they miss before the PR merges.
 
 ## Three ways to use it

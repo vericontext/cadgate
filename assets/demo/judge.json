@@ -1,0 +1,13 @@
+{
+  "verdict": "block",
+  "intentMatch": "differs",
+  "reasons": [
+    "PR description requests a Ø10 mm circular bore for an axial fan flange seal, but head code uses .rect(10, 10).cutThruAll() — a square cutout.",
+    "Volume delta of -400 mm³ matches a 10×10×4 square cut, not the ~314 mm³ a Ø10 circular hole would remove.",
+    "Top render clearly shows a square aperture; this contradicts the stated requirement for a round bore.",
+    "Functional impact: a square cutout will not seal against a round fan flange, defeating the stated cooling purpose."
+  ],
+  "noteForHuman": "Replace .rect(10, 10) with .circle(5) to produce the intended Ø10 mm bore. No DFM violations were flagged and the part remains watertight, but the shape contradicts stated intent.",
+  "modelId": "claude-opus-4-7",
+  "promptCacheHit": false
+}

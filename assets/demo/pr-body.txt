@@ -1,0 +1,4 @@
+Add a Ø10 mm circular vent through the top face of the enclosure
+lid to mount a 10 mm axial fan for SoC cooling. The fan flange
+requires a round bore to seal against the lid surface — a non-round
+cutout will leak air and prevent the fan from mounting flush.
