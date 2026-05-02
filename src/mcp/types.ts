@@ -40,7 +40,13 @@ export const renderInput = {
   source: z.string().min(1),
   language: LanguageSchema.optional(),
   views: z.array(RenderViewSchema).min(1).optional(),
-  /** Embed each PNG as a base64 image content block in the response so MCP clients render them inline. */
-  inline: z.boolean().default(true),
+  /**
+   * Embed each PNG as a base64 image content block. Default is `false` because
+   * not every MCP client surfaces tool image content to the user (Claude
+   * Desktop in late 2026 sends images to the model's vision context but does
+   * not render them in chat). Set `true` when you want the model to *analyze*
+   * the image (vision use case) regardless of whether the user sees it.
+   */
+  inline: z.boolean().default(false),
   timeoutMs: z.number().int().positive().default(60000),
 };

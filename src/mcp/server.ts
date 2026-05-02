@@ -97,7 +97,9 @@ async function callTool<T>(
 function respond<T>(result: McpToolResult<T>, logger: Logger): ToolCallResponse {
   if (result.ok) {
     const payload = { ok: true, ...((result.data as Record<string, unknown>) ?? {}) };
-    const content: ContentBlock[] = [{ type: 'text', text: JSON.stringify(payload) }];
+    const text = JSON.stringify(payload);
+    const previewHint = makePreviewHint(payload);
+    const content: ContentBlock[] = [{ type: 'text', text: previewHint ? `${text}\n\n${previewHint}` : text }];
     if (result.images) {
       for (const img of result.images) {
         content.push({ type: 'image', data: img.data, mimeType: img.mimeType });
@@ -111,4 +113,46 @@ function respond<T>(result: McpToolResult<T>, logger: Logger): ToolCallResponse 
     isError: true,
     content: [{ type: 'text', text: JSON.stringify(errPayload) }],
   };
+}
+
+/**
+ * If the result references PNG paths (cad_render or cad_validate with renders),
+ * emit a copy-pasteable `open` command so users on macOS can preview the renders
+ * without depending on the MCP client to render image content blocks visually.
+ */
+function makePreviewHint(payload: Record<string, unknown>): string | null {
+  const paths = collectPngPaths(payload);
+  if (paths.length === 0) return null;
+  if (paths.length === 1) return `Preview locally:\n  open ${paths[0]}`;
+  // Use a glob spanning the common parent dir if all paths share one — keeps the hint short.
+  const parent = commonParent(paths);
+  if (parent) return `Preview locally:\n  open ${parent}/*.png`;
+  return `Preview locally:\n  open ${paths.join(' ')}`;
+}
+
+function collectPngPaths(value: unknown, out: string[] = []): string[] {
+  if (typeof value === 'string') {
+    if (value.endsWith('.png')) out.push(value);
+    return out;
+  }
+  if (Array.isArray(value)) {
+    for (const v of value) collectPngPaths(v, out);
+    return out;
+  }
+  if (value && typeof value === 'object') {
+    for (const v of Object.values(value)) collectPngPaths(v, out);
+  }
+  return out;
+}
+
+function commonParent(paths: readonly string[]): string | null {
+  if (paths.length === 0) return null;
+  const segments = paths.map((p) => p.split('/'));
+  const first = segments[0]!;
+  let i = 0;
+  for (; i < first.length; i++) {
+    if (!segments.every((s) => s[i] === first[i])) break;
+  }
+  if (i === 0) return null;
+  return first.slice(0, i).join('/').replace(/\/$/, '');
 }

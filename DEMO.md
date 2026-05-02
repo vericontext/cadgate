@@ -144,14 +144,33 @@ import cadquery as cq
 result = cq.Workplane("XY").box(20, 20, 20)
 ```
 
-Expected:
+Expected (default — `inline: false`):
 
 | Field | Value |
 |-------|-------|
 | `renders` | object with 6 keys: `front`, `back`, `top`, `bottom`, `left`, `right` |
-| Each value | absolute PNG path (lives until MCP server shutdown) |
+| Each value | absolute PNG path under `/private/tmp/cadgate-mcp-…/call-…/renders/` (lives until MCP server shutdown) |
+| Text content | also includes a `Preview locally:` hint with a single `open` command for the parent dir |
 
-If Chromium isn't installed:
+To preview the renders in macOS Preview, copy the `open` line from the response (e.g. `open /private/tmp/cadgate-mcp-…/renders/*.png`) into your terminal.
+
+### Vision analysis (`inline: true`)
+
+Default is `inline: false` because as of late 2026 most MCP chat clients — including Claude Desktop — pipe tool-returned image content into the model's vision context but **don't render the PNGs in the chat UI for the user**. Sending base64 every call would be a ~500 KB-1 MB tax for an embed nobody sees.
+
+When you want the *model* to analyze the PNGs (e.g. "describe what's wrong with this geometry"), opt in:
+
+```
+Use cadgate.cad_render with inline: true, then describe what you see.
+
+source:
+import cadquery as cq
+result = cq.Workplane("XY").box(20, 30, 10)
+```
+
+The model now sees the renders directly and can reason about them, even though the chat UI still won't surface the PNG to you. Combine with `open …/*.png` for the human view.
+
+### When Chromium isn't installed
 
 ```json
 {
@@ -164,14 +183,6 @@ If Chromium isn't installed:
 ```
 
 This is a valid result — the fallback fires correctly. Install Chromium and retry.
-
-To inspect a render in chat:
-
-```
-Read the file at the "front" path you just got and show it to me.
-```
-
-If your Claude Desktop has filesystem access, the PNG embeds. Otherwise the path is on disk; open it in Finder.
 
 ## Closing the agentic loop
 
