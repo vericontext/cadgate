@@ -1,6 +1,6 @@
 {
   "name": "cadgate",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "description": "Validate AI-generated CAD-as-code PRs (CadQuery / Build123d / OpenSCAD / KCL).",
   "type": "module",
   "private": true,
