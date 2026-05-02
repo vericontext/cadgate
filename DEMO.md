@@ -221,7 +221,7 @@ Expected (first call ~10–18s; ~5s warm thanks to prompt caching):
 
 Confirms sidecar + renderer + Anthropic + cache are all wired correctly. Useful but not interesting — any metric-only checker would also wave this through.
 
-### Realistic case — shape mismatch the engine can't catch
+### Realistic case A — wrong shape primitive (semantic code error)
 
 The interesting failures look like this: an LLM agent generates code that *looks* like it does what the PR says, all metrics check out, no DFM violations are triggered — but the actual geometry won't mate with the parts it has to mate with. This is exactly the failure mode `cad_judge` exists to catch.
 
@@ -268,6 +268,40 @@ What the judge demonstrates here that a metric-only checker can't:
 Rerun the same prompt within 5 minutes — `promptCacheHit: true`, the call is perceptibly faster, and the verdict is identical (Opus 4.7 has no temperature, and the entire base side is cached, so the response is effectively deterministic for a given diff).
 
 The response also includes the underlying `baseMetrics` / `headMetrics` / `delta` / `dfmViolations` alongside the verdict, so you can read the call and the supporting numbers in one tool turn — no need for a parallel `cad_diff`.
+
+### Realistic case B — no-op PR (claimed feature missing entirely)
+
+A different and extremely common LLM failure mode: *false completion*. The agent says "done" without actually doing the work — token limit hit mid-generation, context dropped, the wrong file was committed, whatever. The PR description claims a feature was added; the head source is byte-identical to base.
+
+```
+Use cadgate.cad_judge to review this PR.
+
+baseSource:
+import cadquery as cq
+result = cq.Workplane("XY").box(40, 40, 5)
+
+headSource:
+import cadquery as cq
+result = cq.Workplane("XY").box(40, 40, 5)
+
+prDescription:
+Add 4× M3 mounting holes (Ø3.4 mm clearance) at the corners of the lid, 5 mm in from each edge, for chassis attachment screws.
+```
+
+Notice the `headSource` is identical to `baseSource` — no holes anywhere. **What a metric-only checker sees: every single field is zero.** `volumeDelta: 0`, `surfaceAreaDelta: 0`, `triCountDelta: 0`, `bboxChanged: false`, `watertightnessChanged: false`, no DFM violations possible (nothing to check). The engine *cannot* tell something was supposed to change — the diff is genuinely empty.
+
+Expected from `cad_judge`:
+
+| Field | Value |
+|-------|-------|
+| `verdict` | `"block"` |
+| `intentMatch` | `"differs"` |
+| All `delta.*` numeric fields | `0` |
+| `dfmViolations` | `[]` |
+| `reasons` | calls out byte-identical sources; notes the would-be holes would have reduced volume + increased triangle count; reads renders showing plain solid plate; states explicitly "head source is identical to base" |
+| `noteForHuman` | derives the correct geometry from the description (5 mm in from each edge of a 40 mm plate ⇒ 30 mm grid), then proposes the matching CadQuery idiom: `.faces(">Z").workplane().rect(30, 30, forConstruction=True).vertices().hole(3.4)` |
+
+This is the cleanest demonstration of the judge's value: **metric-only and DFM-only checkers are silent because there's literally nothing to flag**. The judge's only signal is the contrast between PR text ("added 4 holes") and the engine's reality ("nothing changed"). It's the same thing a human reviewer does in 2 seconds — *"wait, you said you added holes, but the diff is empty"* — and the most direct demonstration of why a vision-equipped LLM judge belongs *next to* the engine, not as a replacement for it.
 
 ### Cost note
 

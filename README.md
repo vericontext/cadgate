@@ -1,6 +1,8 @@
 # CADGate
 
-Validate AI-generated CAD-as-code PRs (CadQuery / Build123d) — geometric metric diff, DFM rules, and 6-view rendered PR previews.
+Validate AI-generated CAD-as-code PRs (CadQuery / Build123d) — geometric metric diff, DFM rules, 6-view rendered PR previews, and an LLM judge that compares head geometry against the human-authored PR description.
+
+Pairs naturally with code-generation tools that emit parametric CAD as Python source — e.g. AI coding agents using [text-to-cad](https://github.com/earthtojake/text-to-cad), [cad-agent](https://github.com/Svetlana-DAO-LLC/cad-agent), or [CQAsk](https://github.com/OpenOrion/CQAsk). Those tools generate; CADGate is the review layer that catches what they miss before the PR merges.
 
 ## GitHub Action — for hardware repos (recommended)
 
