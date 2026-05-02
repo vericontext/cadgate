@@ -21,8 +21,10 @@ Type "cd assets/demo"
 Enter
 Sleep 200ms
 # Stub out cadgate so the demo runs without Docker / API keys / network.
-# Output identical in structure to a real `--report json | jq '.files[0].judge'`.
-Type "cadgate() { sleep 4; cat judge.json; }"
+# Progress lines stream to stderr during the simulated work, JSON to stdout
+# at the end gets pretty-printed by the | jq downstream. Output is verbatim
+# from one real Opus 4.7 call against this fixture (assets/demo/judge.json).
+Type 'cadgate() { echo "  -> running head + base sources in cadquery sidecar (Docker)..." 1>&2; sleep 1.3; echo "  -> computing mesh metrics + rendering 6 views (manifold-3d, three.js)..." 1>&2; sleep 1.0; echo "  -> Claude Opus 4.7 vision judge (12 PNGs, tool_use, prompt cache)..." 1>&2; sleep 1.5; cat judge.json; }'
 Enter
 Sleep 200ms
 Type "clear"
@@ -50,9 +52,14 @@ Type "cadgate check --judge opus --pr-description-file pr-body.txt | jq"
 Sleep 600ms
 Enter
 
-# 4s sleep inside the wrapper simulates Opus 4.7 vision-judge latency,
-# then the captured verdict prints.
+# Progress lines stream during the wrapper's stepped sleeps (~3.8s total),
+# then the captured verdict prints and jq pretty-formats it.
 Sleep 7s
 
-# Hold on the output so a viewer can read the verdict + reasons + fix.
-Sleep 5s
+# Beat for the viewer to digest the verdict + reasons + fix.
+Sleep 4s
+
+# Punchline summary as a typed shell comment — not executed, just visible.
+Type "# BLOCK -- intent differs -- proposed fix: .rect(10, 10) -> .circle(5)"
+Enter
+Sleep 3500ms
