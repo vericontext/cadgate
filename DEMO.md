@@ -190,9 +190,9 @@ This is a valid result — the fallback fires correctly. Install Chromium and re
 
 ## Tool 5: `cad_judge`
 
-Calls Claude Opus 4.7 (or Sonnet 4.6) to compare head geometry against the human-authored PR description and return a structured verdict (`pass` / `block` / `comment-only`) grounded in the metrics + DFM violations + 6-view renders the engine produces. Requires `ANTHROPIC_API_KEY` (set via the `env` block in your MCP config — see Setup).
+Calls Claude Opus 4.7 (or Sonnet 4.6) to compare head geometry against the human-authored PR description and return a structured verdict (`pass` / `block` / `comment-only`) grounded in the metrics + DFM violations + 6-view renders the engine produces. Requires `ANTHROPIC_API_KEY` (set via the `env` block in your MCP config — see Setup). Two prompts: a smoke test to verify the wiring, then the realistic case that demonstrates *why* the judge earns its keep.
 
-Prompt:
+### Smoke test — wiring is alive
 
 ```
 Use cadgate.cad_judge to review this PR.
@@ -209,22 +209,65 @@ prDescription:
 Make the cube slightly bigger.
 ```
 
-Expected (first call ~10–18s for sidecar + render + Anthropic; ~5s warm thanks to prompt caching):
+Expected (first call ~10–18s; ~5s warm thanks to prompt caching):
 
 | Field | Value |
 |-------|-------|
 | `verdict` | `"pass"` |
 | `intentMatch` | `"matches"` |
-| `reasons[0]` | mentions `+33%` volume or `22mm` bbox |
-| `dfmViolations` | `[]` |
-| `headMetrics.volume` | ≈ 10648 |
 | `delta.volumeDeltaPct` | ≈ 33.1 |
-| `modelId` | `"claude-opus-4-7"` |
+| `dfmViolations` | `[]` |
 | `promptCacheHit` | `false` first call → `true` on rerun within 5 min |
 
-The response also includes the underlying `baseMetrics` / `headMetrics` / `delta` / `dfmViolations` so you can read the verdict and the supporting numbers in one tool turn — no need for a parallel `cad_diff` call.
+Confirms sidecar + renderer + Anthropic + cache are all wired correctly. Useful but not interesting — any metric-only checker would also wave this through.
 
-To smoke-test the `block` path, swap `headSource` to a `0.5mm`-shelled cube and pass `rules: {version: 1, rules: [{id: 'min-wall-thickness', minMm: 1.2, severity: 'error'}]}`. The judge will report `verdict: block`, list the DFM violation as a reason, and (per Phase 3 verification) often distinguish the intent-match call from the policy violation in `noteForHuman`.
+### Realistic case — shape mismatch the engine can't catch
+
+The interesting failures look like this: an LLM agent generates code that *looks* like it does what the PR says, all metrics check out, no DFM violations are triggered — but the actual geometry won't mate with the parts it has to mate with. This is exactly the failure mode `cad_judge` exists to catch.
+
+```
+Use cadgate.cad_judge to review this PR.
+
+baseSource:
+import cadquery as cq
+result = cq.Workplane("XY").box(60, 60, 4)
+
+headSource:
+import cadquery as cq
+result = (
+    cq.Workplane("XY").box(60, 60, 4)
+    .faces(">Z").workplane()
+    .rect(10, 10).cutThruAll()
+)
+
+prDescription:
+Add a Ø10 mm circular vent through the top face of the enclosure lid to mount a 10 mm axial fan for SoC cooling. The fan flange requires a round bore to seal against the lid surface — a non-round cutout will leak air and prevent the fan from mounting flush.
+```
+
+The agent used `.rect(10, 10)` instead of `.circle(5)` — a square cutout where the PR specifies a round one. **Pure metric check looks fine**: a cutout was added, volume went down, the part is still watertight (the inner cutout walls close the manifold), no DFM rule was triggered. A `cadgate check` without `--judge` would silently pass this PR.
+
+Expected from `cad_judge`:
+
+| Field | Value |
+|-------|-------|
+| `verdict` | `"block"` |
+| `intentMatch` | `"differs"` |
+| `delta.volumeDelta` | ≈ −400 (matches a 10×10×4 = 400 mm³ square hole) |
+| `delta.watertightnessChanged` | `false` |
+| `dfmViolations` | `[]` |
+| `reasons` | calls out `.rect(10, 10)` vs Ø10 circular spec; cross-checks the −400 mm³ delta against the ~314 mm³ a Ø10 hole would remove; cites the PR's flush-mount + air-leak consequences |
+| `noteForHuman` | suggests the concrete fix (`.circle(5).cutThruAll()`) and explicitly notes that DFM didn't flag this |
+
+What the judge demonstrates here that a metric-only checker can't:
+
+- **Reads the code, not just renders.** It identifies the wrong CadQuery primitive (`.rect`) by name and proposes the right one (`.circle`).
+- **Cross-checks metrics against intent.** It notices that −400 mm³ is the expected delta for a *square* 10×10 hole, not the ~314 mm³ a circular Ø10 hole would remove — and uses that arithmetic mismatch as corroborating evidence on top of the visual reading.
+- **Reads the PR's stated consequences.** The PR mentions "flush mount" and "air leak"; the judge surfaces those exact concerns in its reasoning, so the reviewer sees *why* the verdict matters in mating-part terms.
+- **Knows when the rule engine is silent.** It explicitly states no DFM rule was triggered — telling the human "you can't rely on the policy gate alone for this class of failure."
+
+Rerun the same prompt within 5 minutes — `promptCacheHit: true`, the call is perceptibly faster, and the verdict is identical (Opus 4.7 has no temperature, and the entire base side is cached, so the response is effectively deterministic for a given diff).
+
+The response also includes the underlying `baseMetrics` / `headMetrics` / `delta` / `dfmViolations` alongside the verdict, so you can read the call and the supporting numbers in one tool turn — no need for a parallel `cad_diff`.
 
 ### Cost note
 
