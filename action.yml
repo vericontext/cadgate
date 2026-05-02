@@ -1,5 +1,5 @@
 name: CADGate
-description: Validate AI-generated CAD-as-code PRs (CadQuery / Build123d) — metric diff, DFM rules, 6-view renders, and an opt-in LLM judge that compares head geometry against the PR description.
+description: 'Validate AI-generated CAD PRs (CadQuery/Build123d): metric diff, DFM rules, 6-view renders, LLM intent judge.'
 author: vericontext
 
 branding:
