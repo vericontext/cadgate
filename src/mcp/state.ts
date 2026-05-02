@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createBuild123dDriver } from '../drivers/build123d-driver.ts';
@@ -68,11 +68,16 @@ export function createMcpState(opts: McpStateOptions): McpState {
   async function ensureWorkRoot(): Promise<string> {
     if (workRoot) return workRoot;
     if (!workRootPromise) {
-      workRootPromise = mkdtemp(join(tmpdir(), 'cadgate-mcp-')).then((p) => {
-        workRoot = p;
-        logger.info(`mcp work root: ${p}`);
-        return p;
-      });
+      workRootPromise = mkdtemp(join(tmpdir(), 'cadgate-mcp-'))
+        // realpath() resolves the macOS /tmp → /private/tmp symlink so paths
+        // returned to clients line up with how the filesystem MCP server (and
+        // anything else doing `realpath` on its allow-roots) sees them.
+        .then((p) => realpath(p))
+        .then((p) => {
+          workRoot = p;
+          logger.info(`mcp work root: ${p}`);
+          return p;
+        });
     }
     return workRootPromise;
   }
