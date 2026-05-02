@@ -4,6 +4,16 @@ Validate AI-generated CAD-as-code PRs (CadQuery / Build123d) — geometric metri
 
 Pairs naturally with code-generation tools that emit parametric CAD as Python source — e.g. AI coding agents using [text-to-cad](https://github.com/earthtojake/text-to-cad), [cad-agent](https://github.com/Svetlana-DAO-LLC/cad-agent), or [CQAsk](https://github.com/OpenOrion/CQAsk). Those tools generate; CADGate is the review layer that catches what they miss before the PR merges.
 
+## Three ways to use it
+
+| | If you are… | What you do | Friction |
+|--|--|--|--|
+| **[GitHub Action ↓](#github-action--for-hardware-repos-recommended)** | a hardware repo on GitHub wanting PR-time validation | drop a 10-line workflow yaml + (optional) Anthropic secret | zero local install |
+| **[CLI ↓](#install-the-cli-locally)** | an engineer or contributor validating locally before pushing | `curl` install the binary, `docker pull` the sidecars, run `cadgate check ...` from any git repo | ~3 min one-time |
+| **[MCP server ↓](#mcp-server-for-ai-agents)** | an AI agent (Claude Desktop / Cursor / Cline / Claude Code / etc.) self-validating generated CAD inline | CLI install + a 5-line MCP config block in your client + restart | ~5 min one-time |
+
+All three paths use the same single-binary distribution — **no `git clone`, no source build, no Node/Python toolchain needed**. Source is only required for contributing or for Intel Macs (no `darwin-x64` prebuilt yet — see [Build from source](#build-from-source--contribute)).
+
 ## GitHub Action — for hardware repos (recommended)
 
 Drop this in `.github/workflows/cadgate.yml` of your repo and CADGate runs on every PR. The Action downloads the binary itself; nothing to install on your machine.
